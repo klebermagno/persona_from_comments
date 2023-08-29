@@ -1,8 +1,6 @@
 from text_cleaner import TextCleaner
 from textblob import TextBlob
 from langdetect import detect
-# from polyglot.downloader import downloader
-# from polyglot.text import Text
 
 
 class SentimentAnalyser:
