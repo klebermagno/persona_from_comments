@@ -13,7 +13,8 @@ class SentimentAnalyser:
 
     def _strip(self, text):
         return self.text_cleaner.clean_entities_symbols(
-            self.text_cleaner.strip_links(text))
+            self.text_cleaner.strip_links(text)
+        )
 
     def get_language(self, text):
         return detect(text)
@@ -22,15 +23,15 @@ class SentimentAnalyser:
         text = self._strip(text)
         t = TextBlob(text)
         return t.sentiment.polarity
-    
+
     def get_most_sentimental_sentence(self, text, is_negative=False):
         blob = TextBlob(text)
-        
+
         intensity = 0
-        intense_sentence = ''
+        intense_sentence = ""
         for sentence in blob.sentences:
             score = sentence.sentiment.polarity
-            if is_negative:                
+            if is_negative:
                 if score < intensity:
                     intense_sentence = str(sentence)
                     intensity = score

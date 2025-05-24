@@ -1,17 +1,20 @@
-import re, string
+import re
+import string
 
 
 class TextCleaner:
     def __init__(self):
-        self.link_regex = re.compile('((https?):((//)|(\\\\))+([\w\d:#@%/;$()~_?\+-=\\\.&](#!)?)*)', re.DOTALL)
-        self.entity_prefixes = ['@', '#']
-        self.punctuation_translator = str.maketrans('', '', string.punctuation)
-        self.entities_translator = str.maketrans('', '', '@#')
+        self.link_regex = re.compile(
+            "((https?):((//)|(\\\\))+([\w\d:#@%/;$()~_?\+-=\\\.&](#!)?)*)", re.DOTALL
+        )
+        self.entity_prefixes = ["@", "#"]
+        self.punctuation_translator = str.maketrans("", "", string.punctuation)
+        self.entities_translator = str.maketrans("", "", "@#")
 
     def strip_links(self, text):
         links = re.findall(self.link_regex, text)
         for link in links:
-            text = text.replace(link[0], '')
+            text = text.replace(link[0], "")
         return text
 
     def strip_punctuation(self, text):
@@ -28,7 +31,7 @@ class TextCleaner:
             if word:
                 if word[0] not in self.entity_prefixes:
                     words.append(word)
-        return ' '.join(words)
+        return " ".join(words)
 
     def clean_entities_symbols(self, text):
         """
@@ -48,7 +51,7 @@ class TextCleaner:
                     words.append(word[1:])
                 else:
                     words.append(word)
-        return ' '.join(words)
+        return " ".join(words)
 
     def strip_entities_links(self, text):
         """
