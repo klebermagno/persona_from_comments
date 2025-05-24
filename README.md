@@ -1,54 +1,56 @@
 # YouTube Comment Persona Generator
 
-Este produto utiliza 2 serviços externos. Do YouTube e do Namsor.
-Dessa forma, é preciso definir as variáveis de ambiente:
+[![Python CI/CD](https://github.com/YOUR_USERNAME/persona_from_comments/actions/workflows/python-ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/persona_from_comments/actions/workflows/python-ci.yml)
+[![codecov](https://codecov.io/gh/YOUR_USERNAME/persona_from_comments/branch/main/graph/badge.svg)](https://codecov.io/gh/YOUR_USERNAME/persona_from_comments)
 
-* YOUTUBE_DEVELOPER_KEY
-* NAMSOR_KEY
+This project uses two external services: YouTube API and Namsor API.
+You need to set up the following environment variables:
 
-## Instalação
+* `YOUTUBE_DEVELOPER_KEY` - YouTube Data API v3 key
+* `NAMSOR_KEY` - Namsor API key for gender analysis
+* `OPENAI_API_KEY` - OpenAI API key for LLM analysis
 
-1. Crie um ambiente virtual (virtualenv) e ative-o:
-```
+## Installation
+
+1. Create and activate a virtual environment:
+```bash
 python -m venv venv
-source venv/bin/activate  # No Windows: venv\Scripts\activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-2. Instale as bibliotecas necessárias:
-```
+2. Install the required libraries:
+```bash
 pip install -r requirements.txt
 ```
 
-3. Inicialize o banco de dados:
-```
+3. Initialize the database:
+```bash
 python db_manager.py
 ```
 
-4. Baixe os corpora NLTK:
-```
+4. Download the NLTK corpora:
+```bash
 python -m textblob.download_corpora
 ```
 
-## Uso via Linha de Comando
+## Usage
 
+To generate a persona from YouTube comments, run the following command:
+```bash
+python main.py <VIDEO_ID>
 ```
-python main.py <ID_DO_VIDEO>
-```
+This will create an HTML report at `output/Report-<VIDEO_ID>.html`.
 
-Ao finalizar, será gerado um arquivo chamado "output/Report-<ID_DO_VIDEO>.html".
+## Web Interface
 
-## Interface Web
-
-Uma interface web está disponível para facilitar o uso:
-
-```
+For easier access, a web interface is available:
+```bash
 python app.py
 ```
+Open your browser and go to `http://127.0.0.1:7860/`. There, you can:
 
-Acesse a interface no navegador em `http://127.0.0.1:7860/` e:
+1. Enter the YouTube video ID
+2. Click on "Generate Persona"
+3. View the result and access the full report
 
-1. Insira o ID do vídeo do YouTube
-2. Clique em "Generate Persona"
-3. Visualize o resultado e acesse o relatório completo
-
-Você também pode ver todas as personas já geradas clicando em "List Previous Personas".
+You can also view all previously generated personas by clicking on "List Previous Personas".

@@ -16,6 +16,8 @@ class PersonaData:
     title: str
     name: str
     gender: str
+    age: str
+    language: str
     issues: List[str]
     wishes: List[str]
     pains: List[str]
@@ -67,6 +69,8 @@ class PersonaGenerator:
                 title="No Video Selected",
                 name="",
                 gender="",
+                age="",
+                language="",
                 issues=[],
                 wishes=[],
                 pains=[],
@@ -90,6 +94,8 @@ class PersonaGenerator:
                         title="Error",
                         name="",
                         gender="",
+                        age="",
+                        language="",
                         issues=[],
                         wishes=[],
                         pains=[],
@@ -103,6 +109,8 @@ class PersonaGenerator:
                         title="Error",
                         name="",
                         gender="",
+                        age="",
+                        language="",
                         issues=[],
                         wishes=[],
                         pains=[],
@@ -128,8 +136,10 @@ class PersonaGenerator:
 
             return PersonaData(
                 title=f"Generated Persona for Video: {title}",
-                name=name,
-                gender=self._format_gender(gender),
+                name=name if name else analysis.get("name", ""),
+                gender=self._format_gender(gender) if gender else analysis.get("gender", ""),
+                age=analysis.get("age", ""),
+                language=analysis.get("language", ""),
                 issues=analysis.get("issues", []),  # Use .get for safety
                 wishes=analysis.get("wishes", []),  # Use .get for safety
                 pains=analysis.get("pains", []),  # Use .get for safety
@@ -145,6 +155,8 @@ class PersonaGenerator:
                 title="Error",
                 name="",
                 gender="",
+                age="",
+                language="",
                 issues=[],
                 wishes=[],
                 pains=[],

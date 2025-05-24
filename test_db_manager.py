@@ -84,6 +84,10 @@ class TestDBManager(unittest.TestCase):
 
     def test_save_and_get_analysis(self):
         analysis_data = {
+            "name": "John",
+            "gender": "M",
+            "age": "25-34",
+            "language": "English",
             "issues": ["issue_test1"],
             "wishes": ["wish_test1"],
             "pains": ["pain_test1"],
@@ -93,6 +97,18 @@ class TestDBManager(unittest.TestCase):
 
         retrieved_analysis = self.db.get_analysis("vid_analysis_test")
         self.assertEqual(retrieved_analysis, analysis_data)
+
+        # Test that scalar values are handled correctly
+        self.assertEqual(retrieved_analysis["name"], "John")
+        self.assertEqual(retrieved_analysis["gender"], "M")
+        self.assertEqual(retrieved_analysis["age"], "25-34")
+        self.assertEqual(retrieved_analysis["language"], "English")
+
+        # Test that list values are still handled correctly
+        self.assertEqual(retrieved_analysis["issues"], ["issue_test1"])
+        self.assertEqual(retrieved_analysis["wishes"], ["wish_test1"])
+        self.assertEqual(retrieved_analysis["pains"], ["pain_test1"])
+        self.assertEqual(retrieved_analysis["expressions"], ["expr_test1"])
 
         non_existent_analysis = self.db.get_analysis("nonexistent_analysis_vid")
         self.assertIsNone(

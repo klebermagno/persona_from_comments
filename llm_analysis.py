@@ -25,8 +25,8 @@ class LLMAnalysis:
         self.db = DBManager()
         # Removed self.db.connect() as DBManager now uses context managers
         self.model = "gpt-4"  # Using standard GPT-4 model
-        self.max_tokens_per_request = 8000  # Conservative limit
-        self.max_tokens_response = 2000  # Expected response size
+        self.max_tokens_per_request = 6000  # Reduced to stay under context limit
+        self.max_tokens_response = 1000  # Reduced response size
 
         # Initialize OpenAI client with the imported API key
         self.client = OpenAI(api_key=OPENAI_API_KEY)
@@ -54,6 +54,10 @@ class LLMAnalysis:
             - Common wishes
             - Common pains
             - Common expressions or catchphrases
+            - Name (Summarize all names into one)
+            - Gender (Summarize all genders into one, based on the average comments it should be male or female)
+            - Age (Summarize all ages into one, based on the content of the comments text which is related to age)
+            - Language (Summarize all languages into one, based on the content of the comments which is related to language)
 
             Return your response as a single JSON object with four keys: "issues", "wishes", "pains", and "expressions". Each key should correspond to a list of strings (the extracted items).
 
@@ -66,7 +70,9 @@ class LLMAnalysis:
         )
 
         for comment in comments:
-            comment_tokens = self.count_tokens(comment["text"])
+            # Calculate tokens for both text and author name
+            comment_content = f"{comment['text']} {comment.get('author_clean_name', '')}"
+            comment_tokens = self.count_tokens(comment_content)
             if current_tokens + comment_tokens > max_batch_tokens:
                 if current_batch:  # Save current batch if it exists
                     batches.append(current_batch)
@@ -84,7 +90,12 @@ class LLMAnalysis:
     def analyze_batch(self, comments_batch: List[Dict]) -> dict:
         """Analyze a batch of comments using OpenAI API."""
         try:
-            comments_text = "\n".join([comment["text"] for comment in comments_batch])
+            # Format comments with author names
+            formatted_comments = [
+                f"Author: {comment['author_clean_name']}\nComment: {comment['text']}\n"
+                for comment in comments_batch
+            ]
+            comments_text = "\n".join(formatted_comments)
 
             # Updated prompt to request JSON
             prompt = """
@@ -93,14 +104,29 @@ class LLMAnalysis:
             - Common wishes
             - Common pains
             - Common expressions or catchphrases
+            - Name (Summarize all names into one real name.)
+            - Gender (Summarize all genders into one, based on the average comments it should be male or female)
+            - Age (Summarize all ages into one, based on the content of the comments text which is related to age, give a range like 18-25 or 30-40)
+            - Language (Summarize all languages into one, based on the content of the comments which is related to language)
 
-            Return your response as a single JSON object with four keys: "issues", "wishes", "pains", and "expressions". Each key should correspond to a list of strings (the extracted items).
 
-            Comments:
+            Return your response as a single JSON object with these keys:
+            - "issues": list of strings - common problems or concerns
+            - "wishes": list of strings - desires and aspirations
+            - "pains": list of strings - frustrations and difficulties
+            - "expressions": list of strings - common phrases or sayings
+            - "name": string - Summarize all names into one real name.
+            - "gender": string - inferred gender ("Male", "Female")
+            - "age": string - Summarize all ages into one, based on the content of the comments text which is related to age, give a range like 18-25 or 30-40
+            - "language": string - primary language used
+
+            Analyze these comments and provide insights in JSON format:
             {comments}
             """.format(
                 comments=comments_text
             )
+            
+            print(f"Prompt for batch analysis:\n{prompt}\n")  # Debugging line
 
             max_retries = 3
             retry_delay = 20  # seconds
@@ -144,7 +170,16 @@ class LLMAnalysis:
 
     def _parse_response(self, response: str) -> dict:
         """Parse the JSON response into structured categories."""
-        categories = {"issues": [], "wishes": [], "pains": [], "expressions": []}
+        categories = {
+            "issues": [], 
+            "wishes": [], 
+            "pains": [], 
+            "expressions": [],
+            "name": "",
+            "gender": "",
+            "age": "",
+            "language": ""
+        }
         
         # First, try to find JSON within the response if it's not pure JSON
         try:
@@ -157,15 +192,22 @@ class LLMAnalysis:
                 json_str = response
 
             parsed_json = json.loads(json_str)
-            for category_key in categories.keys():
+            
+            # Handle list categories
+            for category_key in ["issues", "wishes", "pains", "expressions"]:
                 if category_key in parsed_json and isinstance(
                     parsed_json[category_key], list
                 ):
-                    # Ensure all items in the list are strings and not empty
                     categories[category_key] = [
                         str(item).strip() for item in parsed_json[category_key]
                         if str(item).strip()  # Filter out empty strings
                     ]
+            
+            # Handle scalar demographic fields
+            for field in ["name", "gender", "age", "language"]:
+                if field in parsed_json:
+                    categories[field] = str(parsed_json[field]).strip()
+            
             return categories
         except json.JSONDecodeError as e:
             logger.error(f"Failed to decode LLM response as JSON: {e}")
@@ -180,15 +222,36 @@ class LLMAnalysis:
 
     def merge_results(self, results: List[dict]) -> dict:
         """Merge multiple analysis results."""
-        merged = {"issues": [], "wishes": [], "pains": [], "expressions": []}
+        merged = {
+            "issues": [], 
+            "wishes": [], 
+            "pains": [], 
+            "expressions": [],
+            "name": "",
+            "gender": "",
+            "age": "",
+            "language": ""
+        }
 
-        for result in results:
-            for category in merged:
-                merged[category].extend(result.get(category, []))
-
-        # Remove duplicates while preserving order
-        for category in merged:
-            merged[category] = list(dict.fromkeys(merged[category]))
+        # Merge list fields
+        for category in ["issues", "wishes", "pains", "expressions"]:
+            all_items = []
+            for result in results:
+                all_items.extend(result.get(category, []))
+            # Remove duplicates while preserving order
+            merged[category] = list(dict.fromkeys(all_items))
+        
+        # For demographic fields, take the most common non-empty value
+        for field in ["name", "gender", "age", "language"]:
+            field_values = {}
+            for result in results:
+                value = result.get(field, "").strip()
+                if value:
+                    field_values[value] = field_values.get(value, 0) + 1
+            
+            # Get the most common value, or empty string if no values
+            if field_values:
+                merged[field] = max(field_values.items(), key=lambda x: x[1])[0]
 
         return merged
 
