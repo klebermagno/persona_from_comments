@@ -57,7 +57,9 @@ class Gathering:
                 comment.video_id = video_id
                 if len(comment.text) > 20:
                     db.save_comment(comment)
-
+            
+            # Get the next page of comments
+            # and update the request with the new page token
             request = self.youtube.commentThreads().list(
                 part="snippet",
                 maxResults=3000,

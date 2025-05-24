@@ -11,10 +11,8 @@ def main(video_id):
     gathering.execute(video_id)
     mining = Mining()
     mining.execute(video_id)
-    analysis = Analysis()
-    analysis.execute(video_id)
-    generating = Generating()
-    generating.execute(video_id)
+    llm_analyzer = Analysis()
+    llm_analyzer.execute(video_id)
     
 if __name__ == '__main__':
     video_id = str(sys.argv[1])

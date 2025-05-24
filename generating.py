@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from comment import Comment
 from db_manager import DBManager
-from sentiment_analyzer import SentimentAnalyser
+import json
 
 @dataclass
 class Persona:
@@ -9,9 +9,10 @@ class Persona:
     video_id: str = ''
     name: str = ''
     gender: str = ''
+    issues: list = field(default_factory=list)
     wishes: list = field(default_factory=list)
     pains: list = field(default_factory=list)
-    vocabulary: list = field(default_factory=list)
+    expressions: list = field(default_factory=list)
     
 
 class PersonaBuilder:
@@ -47,35 +48,19 @@ class PersonaBuilder:
                 key_name = (firstname, names[firstname])          
         return (key_name[0], key_gender)    
 
-    def _get_pains_and_wishes(self, video_id) -> dict:
-        sentiment_analyzer = SentimentAnalyser()        
-        possible_pains = []
-        possible_wishes = []
+    def _get_analysis_data(self, video_id) -> dict:
+        """Get analysis data from the database"""
+        self.db.cur.execute("SELECT issues, wishes, pains, expressions FROM analysis WHERE video_id = ?", (video_id,))
+        row = self.db.cur.fetchone()
         
-        # possible pains
-        comments = self.db.cur.execute("SELECT * FROM comment WHERE video_id = '{}' ORDER BY sentiment ASC LIMIT 10".format(video_id))
-        for row in comments:
-            comment = Comment(row) 
-            sentimental_sentence = sentiment_analyzer.get_most_sentimental_sentence(
-                    comment.clean_text, True)
-            possible_pains.append(sentimental_sentence)
-        
-        # possible wishes
-        comments = self.db.cur.execute("SELECT * FROM comment WHERE video_id = '{}' ORDER BY sentiment DESC LIMIT 10".format(video_id))
-        for row in comments:
-            comment = Comment(row)             
-            sentimental_sentence = sentiment_analyzer.get_most_sentimental_sentence(
-                comment.clean_text, False)
-            possible_wishes.append(sentimental_sentence)
-        
-        return {'wishes': possible_wishes, 'pains': possible_pains} 
-    
-    def _get_vocabulary(self, video_id) -> list:
-        vocabulary = []
-        keywords = self.db.cur.execute("SELECT text FROM comment_keywords WHERE video_id = '{}' ORDER BY score ASC LIMIT 20".format(video_id))
-        for row in keywords:
-            vocabulary.append(row[0])
-        return vocabulary
+        if row:
+            return {
+                'issues': json.loads(row[0]) if row[0] else [],
+                'wishes': json.loads(row[1]) if row[1] else [],
+                'pains': json.loads(row[2]) if row[2] else [],
+                'expressions': json.loads(row[3]) if row[3] else []
+            }
+        return {'issues': [], 'wishes': [], 'pains': [], 'expressions': []}
     
     def _get_video_title(self, video_id) -> str:
          self.db.cur.execute("SELECT title FROM video WHERE video_id = '{}'".format(video_id))
@@ -83,22 +68,25 @@ class PersonaBuilder:
          return row[0]
         
     def build(self, video_id) -> Persona:
-
         persona = Persona()
         name = self._get_most_common_persona_name(video_id)
         persona.name = name[0]
         persona.gender = name[1]
-        behaviour = self._get_pains_and_wishes(video_id)
-        persona.wishes = behaviour['wishes']
-        persona.pains = behaviour['pains']
-        persona.vocabulary = self._get_vocabulary(video_id)
+        
+        # Get analysis data
+        analysis = self._get_analysis_data(video_id)
+        persona.issues = analysis['issues']
+        persona.wishes = analysis['wishes']
+        persona.pains = analysis['pains']
+        persona.expressions = analysis['expressions']
+        
         persona.video_title = self._get_video_title(video_id)
         persona.video_id = video_id
  
         self.db.close()
         
         return persona
-    
+
 
 class PersonaReport:
     
@@ -136,6 +124,11 @@ class PersonaReport:
                         <td class="label">Gender</td>
                         <td>{gender}</td>
                     </tr>
+                    <tr>
+                        <td class="label">Issues</td>
+                        <td>{issues}</td>
+                    </tr>
+                    <tr>
                         <td class="label">Wishes</td>
                         <td>{wishes}</td>
                     </tr>
@@ -145,7 +138,7 @@ class PersonaReport:
                     </tr>
                     <tr>
                         <td class="label">Common Expressions</td>
-                        <td>{vocabulary}</td>
+                        <td>{expressions}</td>
                     </tr>
                 </table>
             </div>
@@ -157,9 +150,10 @@ class PersonaReport:
         html = self.template.format(
             name=persona.name,
             gender=persona.gender,
+            issues=persona.issues,
             wishes=persona.wishes,
             pains=persona.pains,
-            vocabulary=persona.vocabulary,
+            expressions=persona.expressions,
             video_title=persona.video_title,
             video_id=persona.video_id          
         )
