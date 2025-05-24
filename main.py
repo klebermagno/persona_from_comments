@@ -3,7 +3,7 @@ import logging
 
 from gathering import Gathering
 from mining import Mining
-from analysis import Analysis
+from llm_analysis import LLMAnalysis
 from generating import (
     Generating,
 )  # Added import for consistency, though not used in original main
@@ -36,7 +36,7 @@ def main(video_id):
     logger.info("Finished Mining phase.")
 
     logger.info("Starting Content Analysis phase (sentiments, genders, keywords)...")
-    content_analyzer = Analysis()  # Renamed variable for clarity
+    content_analyzer = LLMAnalysis()
     content_analyzer.execute(video_id)
     logger.info("Finished Content Analysis phase.")
 

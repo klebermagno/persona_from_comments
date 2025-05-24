@@ -112,12 +112,10 @@ class LLMAnalysis:
                     )
                     response = self.client.chat.completions.create(
                         model=self.model,
-                        model=self.model,
-                        response_format={"type": "json_object"},  # Request JSON output
                         messages=[
                             {
                                 "role": "system",
-                                "content": "You are a helpful assistant that analyzes YouTube comments and returns JSON.",
+                                "content": "You are a helpful assistant that analyzes YouTube comments and returns JSON. Always format your response as a valid JSON object.",
                             },
                             {"role": "user", "content": prompt},
                         ],
@@ -141,15 +139,26 @@ class LLMAnalysis:
     def _parse_response(self, response: str) -> dict:
         """Parse the JSON response into structured categories."""
         categories = {"issues": [], "wishes": [], "pains": [], "expressions": []}
+        
+        # First, try to find JSON within the response if it's not pure JSON
         try:
-            parsed_json = json.loads(response)
+            # Look for JSON-like structure between curly braces
+            start_idx = response.find('{')
+            end_idx = response.rfind('}')
+            if start_idx != -1 and end_idx != -1:
+                json_str = response[start_idx:end_idx + 1]
+            else:
+                json_str = response
+
+            parsed_json = json.loads(json_str)
             for category_key in categories.keys():
                 if category_key in parsed_json and isinstance(
                     parsed_json[category_key], list
                 ):
-                    # Ensure all items in the list are strings
+                    # Ensure all items in the list are strings and not empty
                     categories[category_key] = [
-                        str(item) for item in parsed_json[category_key]
+                        str(item).strip() for item in parsed_json[category_key]
+                        if str(item).strip()  # Filter out empty strings
                     ]
             return categories
         except json.JSONDecodeError as e:

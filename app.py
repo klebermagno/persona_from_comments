@@ -33,6 +33,7 @@ class PersonaUI:
 
     def _format_for_display(self, persona: PersonaData) -> Tuple:
         """Format persona data for Gradio display"""
+        issues_data = [[i] for i in persona.issues]
         wishes_data = [[w] for w in persona.wishes]
         pains_data = [[p] for p in persona.pains]
         vocab_data = [[v] for v in persona.expressions]
@@ -41,6 +42,7 @@ class PersonaUI:
             persona.title,
             persona.name,
             persona.gender,
+            issues_data,
             wishes_data,
             pains_data,
             vocab_data,
@@ -127,6 +129,17 @@ class PersonaUI:
 
                         # Display sections
                         with gr.Group(visible=True):
+                            gr.Markdown("### Issues")
+                            issues_list = gr.Dataframe(
+                                headers=["Issues"],
+                                datatype=["str"],
+                                interactive=False,
+                                type="array",
+                                wrap=True,
+                                height=150,
+                                col_count=(1, "fixed"),
+                            )
+
                             gr.Markdown("### Wishes")
                             wishes_list = gr.Dataframe(
                                 headers=["Wishes"],
@@ -134,7 +147,7 @@ class PersonaUI:
                                 interactive=False,
                                 type="array",
                                 wrap=True,
-                                height=200,
+                                height=150,
                                 col_count=(1, "fixed"),
                             )
 
@@ -145,10 +158,11 @@ class PersonaUI:
                                 interactive=False,
                                 type="array",
                                 wrap=True,
-                                height=200,
+                                height=150,
                                 col_count=(1, "fixed"),
                             )
 
+                            gr.Markdown("---")  # Horizontal divider
                             gr.Markdown("### Common Expressions")
                             vocab_list = gr.Dataframe(
                                 headers=["Expressions"],
@@ -156,7 +170,7 @@ class PersonaUI:
                                 interactive=False,
                                 type="array",
                                 wrap=True,
-                                height=200,
+                                height=150,
                                 col_count=(1, "fixed"),
                             )
 
@@ -173,6 +187,7 @@ class PersonaUI:
                     persona_title,
                     persona_name,
                     persona_gender,
+                    issues_list,
                     wishes_list,
                     pains_list,
                     vocab_list,
