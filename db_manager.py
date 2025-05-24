@@ -2,15 +2,88 @@ import sqlite3
 from datetime import datetime
 import json
 from typing import List, Tuple, Dict, Optional
+from contextlib import contextmanager
 
-    
+
 class DBManager:
-    def connect(self):
-        self.con = sqlite3.connect("youtube.db")
-        self.cur = self.con.cursor()
+    def __init__(self, db_name="youtube.db"):
+        self.db_name = db_name
+
+    @contextmanager
+    def _managed_cursor(self, commit_on_exit=False):
+        """Context manager for database cursor with automatic connection management."""
+        con = sqlite3.connect(self.db_name)
+        cur = con.cursor()
+        try:
+            # Create tables if they don't exist (on every connection)
+            self._ensure_tables_exist(cur)
+            yield cur
+            if commit_on_exit:
+                con.commit()
+        finally:
+            con.close()
+            
+    def _ensure_tables_exist(self, cursor):
+        """Ensure all required tables exist."""
+        cursor.executescript("""
+        CREATE TABLE IF NOT EXISTS comment (
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            video_id CHAR(150) NOT NULL,
+            published DATETIME NOT NULL,
+            author_display_name CHAR(100) NOT NULL,
+            author_clean_name CHAR(100),
+            author_gender CHAR(1),
+            likes INTEGER NOT NULL,
+            text TEXT NOT NULL,
+            clean_text TEXT,
+            sentiment REAL,
+            created DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated DATETIME
+        );
         
-    def close(self):
-        self.con.close()
+        CREATE TABLE IF NOT EXISTS comment_keywords (
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            video_id CHAR(150) NOT NULL,
+            text TEXT NOT NULL,
+            score REAL,
+            created DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE TABLE IF NOT EXISTS video (
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            video_id CHAR(150) NOT NULL UNIQUE,
+            title TEXT,
+            created DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE TABLE IF NOT EXISTS analysis (
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            video_id CHAR(150) NOT NULL,
+            issues TEXT,
+            wishes TEXT,
+            pains TEXT,
+            expressions TEXT,
+            created DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated DATETIME,
+            UNIQUE(video_id)
+        );
+        """)
+
+    def _execute_query(
+        self,
+        sql: str,
+        params: tuple = None,
+        fetch_one: bool = False,
+        fetch_all: bool = False,
+        commit: bool = False,
+    ):
+        with self._managed_cursor(commit_on_exit=commit) as cur:
+            cur.execute(sql, params or ())
+            if fetch_one:
+                return cur.fetchone()
+            if fetch_all:
+                return cur.fetchall()
+            return None  # Or cur.rowcount, depending on desired return for non-select queries
 
     def _row_to_dict(self, row):
         """Convert a database row to a dictionary"""
@@ -26,182 +99,241 @@ class DBManager:
             "clean_text": row[8],
             "sentiment": row[9],
             "created": row[10],
-            "updated": row[11]
+            "updated": row[11],
         }
 
     def create_db(self):
-        create_table_comment = """
-        CREATE TABLE if not exists comment (
-            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-            video_id CHAR(150) NOT NULL,
-            published DATATIME NOT NULL,
-            author_display_name CHAR(100) NOT NULL,
-            author_clean_name CHAR(100),
-            author_gender CHAR(1),
-            likes INTEGER NOT NULL,
-            text TEXT NOT NULL,
-            clean_text TEXT,
-            sentiment REAL,
-            created DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated DATETIME
-        );
-        """
-        self.cur.execute(create_table_comment)
-        
-        create_comment_keywords = """
-        CREATE TABLE if not exists comment_keywords (
-            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-            video_id CHAR(150) NOT NULL,
-            text TEXT NOT NULL,
-            score REAL,
-            created DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-        self.cur.execute(create_comment_keywords)
-        
-        create_video = """
-        CREATE TABLE if not exists video (
-            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-            video_id CHAR(150) NOT NULL,
-            title TEXT,
-            created DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-        self.cur.execute(create_video)
-
-        create_analysis = """
-        CREATE TABLE if not exists analysis (
-            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-            video_id CHAR(150) NOT NULL,
-            issues TEXT,
-            wishes TEXT,
-            pains TEXT,
-            expressions TEXT,
-            created DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated DATETIME,
-            UNIQUE(video_id)
-        );
-        """
-        self.cur.execute(create_analysis)
+        """Create all required database tables if they don't exist."""
+        with sqlite3.connect(self.db_name) as conn:
+            cur = conn.cursor()
+            
+            # Create comment table
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS comment (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                video_id CHAR(150) NOT NULL,
+                published DATETIME NOT NULL,
+                author_display_name CHAR(100) NOT NULL,
+                author_clean_name CHAR(100),
+                author_gender CHAR(1),
+                likes INTEGER NOT NULL,
+                text TEXT NOT NULL,
+                clean_text TEXT,
+                sentiment REAL,
+                created DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated DATETIME
+            )
+            """)
+            
+            # Create comment_keywords table
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS comment_keywords (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                video_id CHAR(150) NOT NULL,
+                text TEXT NOT NULL,
+                score REAL,
+                created DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+            
+            # Create video table
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS video (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                video_id CHAR(150) NOT NULL UNIQUE,
+                title TEXT,
+                created DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+            
+            # Create analysis table
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS analysis (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                video_id CHAR(150) NOT NULL,
+                issues TEXT,
+                wishes TEXT,
+                pains TEXT,
+                expressions TEXT,
+                created DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated DATETIME,
+                UNIQUE(video_id)
+            )
+            """)
+            
+            conn.commit()
 
     def save_comment(self, comment):
         sql = "INSERT INTO comment(created, published, video_id, author_display_name, likes, text) VALUES (?,?,?,?,?,?)"
-        
-        
-        self.cur.execute(sql, (datetime.now(), comment.published, comment.video_id,
-                               comment.author_display_name, comment.likes, comment.text))
-        
+        params = (
+            datetime.now(),
+            comment.published,
+            comment.video_id,
+            comment.author_display_name,
+            comment.likes,
+            comment.text,
+        )
+        self._execute_query(sql, params, commit=True)
+
+    def save_video_title(self, video_id: str, title: str):
+        """Saves a new video with its ID and title."""
+        sql = "INSERT INTO video (video_id, title) VALUES (?, ?)"
+        params = (video_id, title)
+        self._execute_query(sql, params, commit=True)
+
     def get_comments(self, video_id, no_sentiment=False, no_gender=False):
+        sql_base = "SELECT * FROM comment WHERE video_id = ?"
+        params = (video_id,)
+
         if no_sentiment:
-            res = self.cur.execute("SELECT * FROM comment WHERE video_id = '{}' AND sentiment IS NULL".format(video_id))
+            sql = f"{sql_base} AND sentiment IS NULL"
         elif no_gender:
-            res = self.cur.execute("SELECT * FROM comment WHERE video_id = '{}' AND author_gender IS NULL".format(video_id))
+            sql = f"{sql_base} AND author_gender IS NULL"
         else:
-            res = self.cur.execute("SELECT * FROM comment WHERE video_id = '{}'".format(video_id))
-        
-        rows = res.fetchall()
-        return [self._row_to_dict(row) for row in rows]
-        
+            sql = sql_base  # No change needed for params
+
+        rows = self._execute_query(sql, params, fetch_all=True)
+        return [self._row_to_dict(row) for row in rows] if rows else []
+
     def save_analysis(self, video_id: str, analysis_data: dict) -> None:
         """Save analysis results to the database."""
         # Convert lists to JSON strings for storage
         analysis_json = {
-            key: json.dumps(value, ensure_ascii=False) 
+            key: json.dumps(value, ensure_ascii=False)
             for key, value in analysis_data.items()
         }
-        
+
         sql = """
         INSERT INTO analysis (video_id, issues, wishes, pains, expressions, created, updated)
-        VALUES (:video_id, :issues, :wishes, :pains, :expressions, :created, :updated)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(video_id) DO UPDATE SET
-            issues = :issues,
-            wishes = :wishes,
-            pains = :pains,
-            expressions = :expressions,
-            updated = :updated
+            issues = excluded.issues,
+            wishes = excluded.wishes,
+            pains = excluded.pains,
+            expressions = excluded.expressions,
+            updated = excluded.updated
         """
-        
-        params = {
-            "video_id": video_id,
-            "issues": analysis_json.get("issues"),
-            "wishes": analysis_json.get("wishes"),
-            "pains": analysis_json.get("pains"),
-            "expressions": analysis_json.get("expressions"),
-            "created": datetime.now(),
-            "updated": datetime.now()
-        }
-        
-        self.cur.execute(sql, params)
-        
+
+        now = datetime.now()
+        params = (
+            video_id,
+            analysis_json.get("issues"),
+            analysis_json.get("wishes"),
+            analysis_json.get("pains"),
+            analysis_json.get("expressions"),
+            now,
+            now,
+        )
+        self._execute_query(sql, params, commit=True)
+
     def get_user_demographics(self, video_id: str) -> Tuple[str, str]:
         """Get the most common gender and name from comments for a video."""
-        genders_count = {'M': 0, 'F': 0}
-        names = {'F': {}, 'M': {}}
-        
-        self.cur.execute(
-            "SELECT author_clean_name, author_gender FROM comment WHERE video_id = ? AND author_gender IS NOT NULL",
-            (video_id,)
+        genders_count = {"M": 0, "F": 0}
+        names = {"F": {}, "M": {}}
+
+        sql = "SELECT author_clean_name, author_gender FROM comment WHERE video_id = ? AND author_gender IS NOT NULL"
+        params = (video_id,)
+
+        results = self._execute_query(sql, params, fetch_all=True)
+
+        if results:
+            for name, gender in results:
+                if gender in genders_count:  # Corrected indentation
+                    genders_count[gender] += 1
+
+                if name and gender in names:  # Corrected indentation
+                    firstname = name.split()[0] if name and " " in name else name
+                    if firstname:  # Corrected indentation
+                        names[gender][firstname] = names[gender].get(firstname, 0) + 1
+
+        dominant_gender = (
+            "M" if genders_count.get("M", 0) > genders_count.get("F", 0) else "F"
         )
-        results = self.cur.fetchall()
-        
-        for name, gender in results:
-            if gender in genders_count:
-                genders_count[gender] += 1
-                
-            if name and gender in names:
-                firstname = name.split()[0] if name and ' ' in name else name
-                if firstname:
-                    names[gender][firstname] = names[gender].get(firstname, 0) + 1
-        
-        dominant_gender = 'M' if genders_count.get('M', 0) > genders_count.get('F', 0) else 'F'
-        
+
         most_common_name = ""
         highest_count = 0
         for name, count in names.get(dominant_gender, {}).items():
             if count > highest_count:
                 most_common_name = name
                 highest_count = count
-                
+
         return most_common_name, dominant_gender
 
     def get_analysis(self, video_id: str) -> Optional[Dict[str, List[str]]]:
         """Get LLM analysis results for a video."""
-        self.cur.execute(
-            "SELECT issues, wishes, pains, expressions FROM analysis WHERE video_id = ?",
-            (video_id,)
+        sql = (
+            "SELECT issues, wishes, pains, expressions FROM analysis WHERE video_id = ?"
         )
-        row = self.cur.fetchone()
-        
+        params = (video_id,)
+        row = self._execute_query(sql, params, fetch_one=True)
+
         if not row:
             return None
-            
+
         return {
-            'issues': json.loads(row[0]) if row[0] else [],
-            'wishes': json.loads(row[1]) if row[1] else [],
-            'pains': json.loads(row[2]) if row[2] else [],
-            'expressions': json.loads(row[3]) if row[3] else []
+            "issues": json.loads(row[0]) if row[0] else [],
+            "wishes": json.loads(row[1]) if row[1] else [],
+            "pains": json.loads(row[2]) if row[2] else [],
+            "expressions": json.loads(row[3]) if row[3] else [],
         }
 
     def get_video_title(self, video_id: str) -> str:
         """Get the title of a video."""
-        self.cur.execute("SELECT title FROM video WHERE video_id = ?", (video_id,))
-        row = self.cur.fetchone()
+        sql = "SELECT title FROM video WHERE video_id = ?"
+        params = (video_id,)
+        row = self._execute_query(sql, params, fetch_one=True)
         return row[0] if row else "Unknown Title"
 
     def video_exists(self, video_id: str) -> bool:
         """Check if a video exists in the database."""
-        self.cur.execute("SELECT 1 FROM video WHERE video_id = ?", (video_id,))
-        return bool(self.cur.fetchone())
+        sql = "SELECT 1 FROM video WHERE video_id = ?"
+        params = (video_id,)
+        return bool(self._execute_query(sql, params, fetch_one=True))
 
     def get_all_videos(self) -> List[Tuple[str, str]]:
         """Get all videos with their titles."""
-        self.cur.execute("SELECT video_id, title FROM video ORDER BY created DESC")
-        return self.cur.fetchall()
+        sql = "SELECT video_id, title FROM video ORDER BY created DESC"
+        return self._execute_query(sql, fetch_all=True) or []
 
     def get_keywords(self, video_id: str) -> List[str]:
         """Get keywords for a video."""
-        self.cur.execute(
-            "SELECT text FROM comment_keywords WHERE video_id = ? ORDER BY score ASC LIMIT 20",
-            (video_id,)
+        sql = "SELECT text FROM comment_keywords WHERE video_id = ? ORDER BY score ASC LIMIT 20"
+        params = (video_id,)
+        results = self._execute_query(sql, params, fetch_all=True)
+        return [row[0] for row in results] if results else []
+
+    def update_comment_processed_text(
+        self,
+        comment_id: int,
+        clean_text: str,
+        author_clean_name: str,
+        updated_time: datetime,
+    ):
+        """Updates the clean_text and author_clean_name of a comment."""
+        sql = (
+            "UPDATE comment SET clean_text=?, author_clean_name=?, updated=? WHERE id=?"
         )
-        return [row[0] for row in self.cur.fetchall()]
+        params = (clean_text, author_clean_name, updated_time, comment_id)
+        self._execute_query(sql, params, commit=True)
+
+    def update_comment_sentiment(
+        self, comment_id: int, sentiment_score: float, updated_time: datetime
+    ):
+        """Updates the sentiment score of a comment."""
+        sql = "UPDATE comment SET sentiment=?, updated=? WHERE id=?"
+        params = (sentiment_score, updated_time, comment_id)
+        self._execute_query(sql, params, commit=True)
+
+    def update_comment_gender(
+        self, comment_id: int, gender: str, updated_time: datetime
+    ):
+        """Updates the author_gender of a comment."""
+        sql = "UPDATE comment SET author_gender=?, updated=? WHERE id=?"
+        params = (gender, updated_time, comment_id)
+        self._execute_query(sql, params, commit=True)
+
+    def save_comment_keyword(self, video_id: str, text: str, score: float):
+        """Saves a new comment keyword."""
+        sql = "INSERT INTO comment_keywords (video_id, text, score) VALUES (?,?,?)"
+        params = (video_id, text, score)
+        self._execute_query(sql, params, commit=True)

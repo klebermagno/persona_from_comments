@@ -1,56 +1,235 @@
-import os
-from llm_analysis import LLMAnalysis
+import unittest
+from unittest.mock import patch, MagicMock
 import json
-from datetime import datetime
+from llm_analysis import LLMAnalysis
+from db_manager import DBManager  # For mocking spec
+from openai import OpenAI  # For mocking spec
 
-def save_analysis_to_file(video_id: str, analysis: dict):
-    """Save the analysis results to a JSON file in the output directory."""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"output/llm_analysis_{video_id}_{timestamp}.json"
-    
-    os.makedirs("output", exist_ok=True)
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(analysis, f, indent=2, ensure_ascii=False)
-    return filename
+# For controlling token counting in tests
+MOCK_BASE_PROMPT_TEXT = """
+            Analyze the following YouTube comments. Extract and summarize:
+            - Common issues
+            - Common wishes
+            - Common pains
+            - Common expressions or catchphrases
 
-def main():
-    # Ensure OPENAI_API_KEY is set
-    if not os.getenv("OPENAI_API_KEY"):
-        print("Error: OPENAI_API_KEY environment variable is not set")
-        print("Please set it using: export OPENAI_API_KEY='your-api-key'")
-        return
+            Return your response as a single JSON object with four keys: "issues", "wishes", "pains", and "expressions". Each key should correspond to a list of strings (the extracted items).
 
-    # List of video IDs to analyze
-    video_ids = [
-        # "NIgrGqmoeHs",
-        # "Yfp0p_0-iTo",
-        # "bDVpI23q8Zg",
-        # "cDbYR5lE3jY",
-        # "O8XIgMwILAw",
-        "SqvDaSNYoCY"
-    ]
+            Comments:
+        """
 
-    llm_analyzer = LLMAnalysis()
 
-    for video_id in video_ids:
-        print(f"\nAnalyzing video {video_id}...")
-        try:
-            analysis = llm_analyzer.execute(video_id)
-            if analysis:
-                output_file = save_analysis_to_file(video_id, analysis)
-                print(f"Analysis saved to {output_file}")
-                
-                # Print a summary of the analysis
-                print("\nSummary:")
-                for category, items in analysis.items():
-                    print(f"\n{category.upper()}:")
-                    for item in items[:3]:  # Show first 3 items of each category
-                        print(f"- {item}")
-                print("...")
-            else:
-                print(f"No analysis results for video {video_id}")
-        except Exception as e:
-            print(f"Error analyzing video {video_id}: {str(e)}")
+class TestLLMAnalysis(unittest.TestCase):
+
+    def setUp(self):
+        self.mock_db_manager = MagicMock(spec=DBManager)
+        self.mock_openai_client = MagicMock(spec=OpenAI)
+        # Mock the specific method chain used in LLMAnalysis
+        self.mock_openai_client.chat.completions.create = MagicMock()
+
+        self.patcher_db = patch(
+            "llm_analysis.DBManager", return_value=self.mock_db_manager
+        )
+        # Patch the OpenAI class where it's instantiated in LLMAnalysis
+        self.patcher_openai = patch(
+            "llm_analysis.OpenAI", return_value=self.mock_openai_client
+        )
+
+        # Mock for tiktoken
+        self.mock_encoding = MagicMock()
+        self.patcher_tiktoken = patch(
+            "llm_analysis.tiktoken.encoding_for_model", return_value=self.mock_encoding
+        )
+
+        self.MockDBManager = self.patcher_db.start()
+        self.MockOpenAI = self.patcher_openai.start()
+        self.MockTiktoken = self.patcher_tiktoken.start()
+
+        # Configure the mock_encoding's encode method
+        # Default behavior: returns a list with length equal to text length (1 token per char)
+        self.mock_encoding.encode.side_effect = lambda text: list(range(len(text)))
+
+        self.analyzer = LLMAnalysis()
+
+    def tearDown(self):
+        self.patcher_db.stop()
+        self.patcher_openai.stop()
+        self.patcher_tiktoken.stop()
+
+    def test_execute_no_comments(self):
+        self.mock_db_manager.get_comments.return_value = []
+        result = self.analyzer.execute("vid_no_comments")
+        self.assertIsNone(result)
+        self.mock_db_manager.save_analysis.assert_not_called()
+
+    def test_execute_successful_analysis(self):
+        comments_data = [
+            {"id": 1, "text": "Comment 1", "clean_text": "Comment 1"},
+            {"id": 2, "text": "Comment 2", "clean_text": "Comment 2"},
+        ]
+        self.mock_db_manager.get_comments.return_value = comments_data
+
+        mock_llm_response_content_dict = {
+            "issues": ["i1"],
+            "wishes": ["w1"],
+            "pains": ["p1"],
+            "expressions": ["e1"],
+        }
+        mock_llm_response_content_json = json.dumps(mock_llm_response_content_dict)
+
+        mock_choice = MagicMock()
+        mock_choice.message.content = mock_llm_response_content_json
+        self.mock_openai_client.chat.completions.create.return_value = MagicMock(
+            choices=[mock_choice]
+        )
+
+        result = self.analyzer.execute("vid_success")
+
+        self.assertEqual(result, mock_llm_response_content_dict)
+        self.mock_db_manager.save_analysis.assert_called_once_with(
+            "vid_success", result
+        )
+        self.mock_openai_client.chat.completions.create.assert_called_once()
+
+    def test_execute_openai_api_error(self):
+        self.mock_db_manager.get_comments.return_value = [
+            {"id": 1, "text": "Comment 1", "clean_text": "Comment 1"}
+        ]
+        self.mock_openai_client.chat.completions.create.side_effect = Exception(
+            "OpenAI API Error"
+        )
+
+        with self.assertRaises(Exception) as context:
+            self.analyzer.execute("vid_api_error")
+        self.assertIn("OpenAI API Error", str(context.exception))
+        self.mock_db_manager.save_analysis.assert_not_called()
+
+    def test_batch_comments_logic(self):
+        # Set specific token counts for this test via the mock_encoding
+        # Each character will count as 1 token due to side_effect lambda text: [1]*len(text) in setUp
+
+        # Use the actual prompt from LLMAnalysis for accurate base token count
+        base_prompt_tokens = len(
+            MOCK_BASE_PROMPT_TEXT
+        )  # As per current mock: 1 token per char
+
+        # Configure analyzer's limits for this test
+        self.analyzer.max_tokens_per_request = 1000
+        self.analyzer.max_tokens_response = 100  # Reduced for easier testing
+
+        # This is the max tokens available for the comments text itself in a batch
+        max_batch_tokens_for_text = (
+            self.analyzer.max_tokens_per_request
+            - base_prompt_tokens
+            - self.analyzer.max_tokens_response
+        )
+
+        # Ensure max_batch_tokens_for_text is positive, otherwise the test setup is wrong
+        self.assertGreater(
+            max_batch_tokens_for_text,
+            0,
+            "Max batch tokens for text is not positive, check prompt/limits",
+        )
+
+        comments = [
+            {
+                "id": 1,
+                "text": "a" * (max_batch_tokens_for_text - 10),
+            },  # Fits in one batch
+            {
+                "id": 2,
+                "text": "b" * (max_batch_tokens_for_text - 5),
+            },  # Fits in another batch
+            {"id": 3, "text": "c" * 20},  # Fits with comment 2 or in a new batch
+        ]
+
+        # Re-calculate token counts based on actual text using the mock
+        comment1_tokens = len(comments[0]["text"])
+        comment2_tokens = len(comments[1]["text"])
+        comment3_tokens = len(comments[2]["text"])
+
+        batches = self.analyzer.batch_comments(comments)
+
+        # Expected:
+        # Batch 1: comment1 (fits)
+        # Batch 2: comment2 (fits because comment1 + comment2 > max_batch_tokens_for_text)
+        # Batch 3: comment3 (fits because comment2 + comment3 > max_batch_tokens_for_text, assuming comment3 itself isn't too large)
+        # This depends on the exact addition logic.
+        # If current_tokens + comment_tokens > max_batch_tokens:
+        # Batch 1: comment1
+        # current_tokens = comment1_tokens.
+        # For comment2: comment1_tokens + comment2_tokens > max_batch_tokens_for_text. So new batch.
+        # Batch 2: comment2
+        # current_tokens = comment2_tokens
+        # For comment3: comment2_tokens + comment3_tokens <= max_batch_tokens_for_text. So comment3 adds to Batch 2.
+
+        if comment1_tokens + comment2_tokens > max_batch_tokens_for_text:
+            if comment2_tokens + comment3_tokens > max_batch_tokens_for_text:
+                self.assertEqual(
+                    len(batches), 3, "Should be 3 batches if c3 makes a new batch"
+                )
+                self.assertEqual(len(batches[0]), 1)
+                self.assertEqual(len(batches[1]), 1)
+                self.assertEqual(len(batches[2]), 1)
+            else:  # c3 fits with c2
+                self.assertEqual(
+                    len(batches), 2, "Should be 2 batches if c3 fits with c2"
+                )
+                self.assertEqual(len(batches[0]), 1)
+                self.assertEqual(len(batches[1]), 2)
+        else:  # c1 and c2 fit together
+            self.assertEqual(
+                len(batches), 1, "Should be 1 batch if c1+c2 fit, and c3 fits too"
+            )
+            self.assertEqual(len(batches[0]), 3)
+
+    def test_parse_response_valid_json(self):
+        json_string = '{"issues": ["issue1"], "wishes": ["wish1"], "pains": [], "expressions": ["expr1"]}'
+        parsed = self.analyzer._parse_response(json_string)
+        self.assertEqual(parsed["issues"], ["issue1"])
+        self.assertEqual(parsed["wishes"], ["wish1"])
+        self.assertEqual(parsed["pains"], [])
+        self.assertEqual(parsed["expressions"], ["expr1"])
+
+    def test_parse_response_invalid_json(self):
+        invalid_json_string = '{"issues": ["issue1"], "wishes": incomplete_json'
+        parsed = self.analyzer._parse_response(invalid_json_string)
+        # Expect default structure due to JSONDecodeError
+        self.assertEqual(
+            parsed, {"issues": [], "wishes": [], "pains": [], "expressions": []}
+        )
+
+    def test_parse_response_partial_keys(self):
+        json_string = '{"issues": ["issue1"], "extras": ["unexpected"]}'  # Missing other main keys
+        parsed = self.analyzer._parse_response(json_string)
+        self.assertEqual(parsed["issues"], ["issue1"])
+        self.assertEqual(parsed["wishes"], [])  # Should be default empty list
+        self.assertEqual(parsed["pains"], [])  # Should be default empty list
+        self.assertEqual(parsed["expressions"], [])  # Should be default empty list
+
+    def test_merge_results(self):
+        results_list = [
+            {
+                "issues": ["i1"],
+                "wishes": ["w1"],
+                "pains": ["p1"],
+                "expressions": ["e1"],
+            },
+            {
+                "issues": ["i2", "i1"],
+                "wishes": ["w2"],
+                "pains": [],
+                "expressions": ["e2"],
+            },
+        ]
+        merged = self.analyzer.merge_results(results_list)
+
+        # dict.fromkeys preserves order from Python 3.7+
+        self.assertEqual(merged["issues"], ["i1", "i2"])
+        self.assertEqual(merged["wishes"], ["w1", "w2"])
+        self.assertEqual(merged["pains"], ["p1"])
+        self.assertEqual(merged["expressions"], ["e1", "e2"])
+
 
 if __name__ == "__main__":
-    main()
+    unittest.main()
