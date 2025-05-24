@@ -1,7 +1,7 @@
 import sqlite3
 from datetime import datetime
 import json
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Union
 from contextlib import contextmanager
 
 
@@ -59,6 +59,10 @@ class DBManager:
         CREATE TABLE IF NOT EXISTS analysis (
             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
             video_id CHAR(150) NOT NULL,
+            name TEXT,
+            gender TEXT,
+            age TEXT,
+            language TEXT,
             issues TEXT,
             wishes TEXT,
             pains TEXT,
@@ -151,6 +155,10 @@ class DBManager:
             CREATE TABLE IF NOT EXISTS analysis (
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                 video_id CHAR(150) NOT NULL,
+                name TEXT,
+                gender TEXT,
+                age TEXT,
+                language TEXT,
                 issues TEXT,
                 wishes TEXT,
                 pains TEXT,
@@ -197,16 +205,26 @@ class DBManager:
 
     def save_analysis(self, video_id: str, analysis_data: dict) -> None:
         """Save analysis results to the database."""
-        # Convert lists to JSON strings for storage
-        analysis_json = {
-            key: json.dumps(value, ensure_ascii=False)
-            for key, value in analysis_data.items()
-        }
+        # Convert lists to JSON strings for storage, but keep scalar values as is
+        analysis_json = {}
+        for key, value in analysis_data.items():
+            if isinstance(value, (list, dict)):
+                analysis_json[key] = json.dumps(value, ensure_ascii=False)
+            else:
+                analysis_json[key] = value
 
         sql = """
-        INSERT INTO analysis (video_id, issues, wishes, pains, expressions, created, updated)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO analysis (
+            video_id, name, gender, age, language,
+            issues, wishes, pains, expressions, 
+            created, updated
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(video_id) DO UPDATE SET
+            name = excluded.name,
+            gender = excluded.gender,
+            age = excluded.age,
+            language = excluded.language,
             issues = excluded.issues,
             wishes = excluded.wishes,
             pains = excluded.pains,
@@ -217,6 +235,10 @@ class DBManager:
         now = datetime.now()
         params = (
             video_id,
+            analysis_json.get("name"),
+            analysis_json.get("gender"),
+            analysis_json.get("age"),
+            analysis_json.get("language"),
             analysis_json.get("issues"),
             analysis_json.get("wishes"),
             analysis_json.get("pains"),
@@ -259,10 +281,10 @@ class DBManager:
 
         return most_common_name, dominant_gender
 
-    def get_analysis(self, video_id: str) -> Optional[Dict[str, List[str]]]:
+    def get_analysis(self, video_id: str) -> Optional[Dict[str, Union[List[str], str]]]:
         """Get LLM analysis results for a video."""
         sql = (
-            "SELECT issues, wishes, pains, expressions FROM analysis WHERE video_id = ?"
+            "SELECT name, gender, age, language, issues, wishes, pains, expressions FROM analysis WHERE video_id = ?"
         )
         params = (video_id,)
         row = self._execute_query(sql, params, fetch_one=True)
@@ -271,10 +293,14 @@ class DBManager:
             return None
 
         return {
-            "issues": json.loads(row[0]) if row[0] else [],
-            "wishes": json.loads(row[1]) if row[1] else [],
-            "pains": json.loads(row[2]) if row[2] else [],
-            "expressions": json.loads(row[3]) if row[3] else [],
+            "name": row[0] or "",
+            "gender": row[1] or "",
+            "age": row[2] or "",
+            "language": row[3] or "",
+            "issues": json.loads(row[4]) if row[4] else [],
+            "wishes": json.loads(row[5]) if row[5] else [],
+            "pains": json.loads(row[6]) if row[6] else [],
+            "expressions": json.loads(row[7]) if row[7] else [],
         }
 
     def get_video_title(self, video_id: str) -> str:

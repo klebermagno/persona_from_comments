@@ -42,6 +42,8 @@ class PersonaUI:
             persona.title,
             persona.name,
             persona.gender,
+            persona.age,
+            persona.language,
             issues_data,
             wishes_data,
             pains_data,
@@ -110,22 +112,39 @@ class PersonaUI:
                 with gr.Column(scale=2):
                     persona_title = gr.Markdown("## Persona Details")
 
-                    with gr.Group():  # Removed "as persona_details"
+                    # Basic Information Grid using flexible layout
+                    with gr.Group():
+                        gr.Markdown("### Basic Information")
                         with gr.Row():
-                            with gr.Column(min_width=150):
+                            # Left column for labels
+                            with gr.Column(min_width=80, scale=1):
                                 gr.Markdown("**Name:**")
-                            with gr.Column():
-                                persona_name = gr.Textbox(
-                                    interactive=False, show_label=False
-                                )
-
-                        with gr.Row():
-                            with gr.Column(min_width=150):
                                 gr.Markdown("**Gender:**")
-                            with gr.Column():
-                                persona_gender = gr.Textbox(
-                                    interactive=False, show_label=False
+                                gr.Markdown("**Age:**")
+                                gr.Markdown("**Language:**")
+                            # Right column for values with consistent width
+                            with gr.Column(min_width=200, scale=1):
+                                persona_name = gr.Textbox(
+                                    interactive=False, 
+                                    show_label=False,
+                                    lines=1
                                 )
+                                persona_gender = gr.Textbox(
+                                    interactive=False, 
+                                    show_label=False,
+                                    lines=1
+                                )
+                                persona_age = gr.Textbox(
+                                    interactive=False, 
+                                    show_label=False,
+                                    lines=1
+                                )
+                                persona_language = gr.Textbox(
+                                    interactive=False, 
+                                    show_label=False,
+                                    lines=1
+                                )
+                        gr.Markdown("---")
 
                         # Display sections
                         with gr.Group(visible=True):
@@ -187,6 +206,8 @@ class PersonaUI:
                     persona_title,
                     persona_name,
                     persona_gender,
+                    persona_age,
+                    persona_language,
                     issues_list,
                     wishes_list,
                     pains_list,
@@ -216,6 +237,8 @@ class PersonaUI:
                     persona_title,
                     persona_name,
                     persona_gender,
+                    persona_age,
+                    persona_language,
                     issues_list,
                     wishes_list,
                     pains_list,
@@ -270,4 +293,4 @@ def initialize_environment():
 if __name__ == "__main__":
     initialize_environment()
     ui = PersonaUI()
-    ui.create_interface().launch(share=True)
+    ui.create_interface().launch(share=False)
