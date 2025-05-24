@@ -216,6 +216,7 @@ class PersonaUI:
                     persona_title,
                     persona_name,
                     persona_gender,
+                    issues_list,
                     wishes_list,
                     pains_list,
                     vocab_list,
@@ -269,4 +270,4 @@ def initialize_environment():
 if __name__ == "__main__":
     initialize_environment()
     ui = PersonaUI()
-    ui.create_interface().launch(share=False)
+    ui.create_interface().launch(share=True)

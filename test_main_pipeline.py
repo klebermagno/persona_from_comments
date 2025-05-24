@@ -10,7 +10,7 @@ from main import main  # Import the main function to be tested
 class TestMainPipeline(unittest.TestCase):
 
     @patch("main.Generating")
-    @patch("main.Analysis")
+    @patch("main.LLMAnalysis")
     @patch("main.Mining")
     @patch("main.Gathering")
     def test_pipeline_calls_execute_on_all_components(
@@ -32,7 +32,7 @@ class TestMainPipeline(unittest.TestCase):
         mock_generating_instance.execute.assert_called_once_with("test_video_id")
 
     @patch("main.Generating")
-    @patch("main.Analysis")
+    @patch("main.LLMAnalysis")
     @patch("main.Mining")
     @patch("main.Gathering")
     def test_pipeline_order_of_execution(

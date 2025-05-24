@@ -105,6 +105,7 @@ class LLMAnalysis:
             max_retries = 3
             retry_delay = 20  # seconds
 
+            last_exception = None
             for attempt in range(max_retries):
                 try:
                     logger.info(
@@ -115,7 +116,7 @@ class LLMAnalysis:
                         messages=[
                             {
                                 "role": "system",
-                                "content": "You are a helpful assistant that analyzes YouTube comments and returns JSON. Always format your response as a valid JSON object.",
+                                "content": "You are a helpful assistant that analyzes YouTube comments and returns JSON.",
                             },
                             {"role": "user", "content": prompt},
                         ],
@@ -124,13 +125,18 @@ class LLMAnalysis:
                     return self._parse_response(response.choices[0].message.content)
 
                 except Exception as e:
+                    last_exception = e
                     logger.error(f"Error in attempt {attempt + 1}: {str(e)}")
                     if "rate_limit" in str(e).lower() and attempt < max_retries - 1:
                         wait_time = retry_delay * (2**attempt)  # Exponential backoff
                         logger.info(f"Rate limit hit, waiting {wait_time} seconds...")
                         time.sleep(wait_time)
                         continue
-                    raise
+
+            if last_exception:
+                raise last_exception  # Re-raise the last exception if all retries failed
+            
+            raise Exception("All retry attempts failed without an exception")
 
         except Exception as e:
             logger.error(f"Error in analyze_batch: {str(e)}")

@@ -11,14 +11,63 @@ class DBManager:
 
     @contextmanager
     def _managed_cursor(self, commit_on_exit=False):
+        """Context manager for database cursor with automatic connection management."""
         con = sqlite3.connect(self.db_name)
         cur = con.cursor()
         try:
+            # Create tables if they don't exist (on every connection)
+            self._ensure_tables_exist(cur)
             yield cur
             if commit_on_exit:
                 con.commit()
         finally:
             con.close()
+            
+    def _ensure_tables_exist(self, cursor):
+        """Ensure all required tables exist."""
+        cursor.executescript("""
+        CREATE TABLE IF NOT EXISTS comment (
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            video_id CHAR(150) NOT NULL,
+            published DATETIME NOT NULL,
+            author_display_name CHAR(100) NOT NULL,
+            author_clean_name CHAR(100),
+            author_gender CHAR(1),
+            likes INTEGER NOT NULL,
+            text TEXT NOT NULL,
+            clean_text TEXT,
+            sentiment REAL,
+            created DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated DATETIME
+        );
+        
+        CREATE TABLE IF NOT EXISTS comment_keywords (
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            video_id CHAR(150) NOT NULL,
+            text TEXT NOT NULL,
+            score REAL,
+            created DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE TABLE IF NOT EXISTS video (
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            video_id CHAR(150) NOT NULL UNIQUE,
+            title TEXT,
+            created DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE TABLE IF NOT EXISTS analysis (
+            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            video_id CHAR(150) NOT NULL,
+            issues TEXT,
+            wishes TEXT,
+            pains TEXT,
+            expressions TEXT,
+            created DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated DATETIME,
+            UNIQUE(video_id)
+        );
+        """)
 
     def _execute_query(
         self,
@@ -54,59 +103,65 @@ class DBManager:
         }
 
     def create_db(self):
-        create_table_comment = """
-        CREATE TABLE if not exists comment (
-            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-            video_id CHAR(150) NOT NULL,
-            published DATATIME NOT NULL,
-            author_display_name CHAR(100) NOT NULL,
-            author_clean_name CHAR(100),
-            author_gender CHAR(1),
-            likes INTEGER NOT NULL,
-            text TEXT NOT NULL,
-            clean_text TEXT,
-            sentiment REAL,
-            created DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated DATETIME
-        );
-        """
-        self._execute_query(create_table_comment, commit=True)
-
-        create_comment_keywords = """
-        CREATE TABLE if not exists comment_keywords (
-            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-            video_id CHAR(150) NOT NULL,
-            text TEXT NOT NULL,
-            score REAL,
-            created DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-        self._execute_query(create_comment_keywords, commit=True)
-
-        create_video = """
-        CREATE TABLE if not exists video (
-            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-            video_id CHAR(150) NOT NULL,
-            title TEXT,
-            created DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-        self._execute_query(create_video, commit=True)
-
-        create_analysis = """
-        CREATE TABLE if not exists analysis (
-            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-            video_id CHAR(150) NOT NULL,
-            issues TEXT,
-            wishes TEXT,
-            pains TEXT,
-            expressions TEXT,
-            created DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated DATETIME,
-            UNIQUE(video_id)
-        );
-        """
-        self._execute_query(create_analysis, commit=True)
+        """Create all required database tables if they don't exist."""
+        with sqlite3.connect(self.db_name) as conn:
+            cur = conn.cursor()
+            
+            # Create comment table
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS comment (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                video_id CHAR(150) NOT NULL,
+                published DATETIME NOT NULL,
+                author_display_name CHAR(100) NOT NULL,
+                author_clean_name CHAR(100),
+                author_gender CHAR(1),
+                likes INTEGER NOT NULL,
+                text TEXT NOT NULL,
+                clean_text TEXT,
+                sentiment REAL,
+                created DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated DATETIME
+            )
+            """)
+            
+            # Create comment_keywords table
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS comment_keywords (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                video_id CHAR(150) NOT NULL,
+                text TEXT NOT NULL,
+                score REAL,
+                created DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+            
+            # Create video table
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS video (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                video_id CHAR(150) NOT NULL UNIQUE,
+                title TEXT,
+                created DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+            
+            # Create analysis table
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS analysis (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                video_id CHAR(150) NOT NULL,
+                issues TEXT,
+                wishes TEXT,
+                pains TEXT,
+                expressions TEXT,
+                created DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated DATETIME,
+                UNIQUE(video_id)
+            )
+            """)
+            
+            conn.commit()
 
     def save_comment(self, comment):
         sql = "INSERT INTO comment(created, published, video_id, author_display_name, likes, text) VALUES (?,?,?,?,?,?)"

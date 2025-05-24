@@ -16,6 +16,7 @@ class PersonaData:
     title: str
     name: str
     gender: str
+    issues: List[str]
     wishes: List[str]
     pains: List[str]
     expressions: List[str]
@@ -66,6 +67,7 @@ class PersonaGenerator:
                 title="No Video Selected",
                 name="",
                 gender="",
+                issues=[],
                 wishes=[],
                 pains=[],
                 expressions=[],
@@ -79,11 +81,34 @@ class PersonaGenerator:
             # Process video if not in database
             if not self.db.video_exists(video_id):
                 logger.info(f"Video {video_id} not found in database, processing...")
-                # Assuming 'main' is the function that processes the video and stores initial data.
-                # This function might also need refactoring if it directly uses DBManager connections.
-                main(video_id)
-                # self.db.close() # REMOVED
-                # self.db.connect() # REMOVED - No need to reconnect, subsequent calls use context manager
+                try:
+                    main(video_id)
+                except ValueError as ve:
+                    # Handle specific error for invalid/inaccessible videos
+                    logger.error(f"Invalid video ID {video_id}: {str(ve)}")
+                    return PersonaData(
+                        title="Error",
+                        name="",
+                        gender="",
+                        issues=[],
+                        wishes=[],
+                        pains=[],
+                        expressions=[],
+                        status=f"Invalid video ID: {str(ve)}",
+                    )
+                except Exception as e:
+                    # Handle other errors in processing
+                    logger.error(f"Error processing video {video_id}: {str(e)}")
+                    return PersonaData(
+                        title="Error",
+                        name="",
+                        gender="",
+                        issues=[],
+                        wishes=[],
+                        pains=[],
+                        expressions=[],
+                        status=f"Error processing video: {str(e)}",
+                    )
 
             # Get video information
             title = self.db.get_video_title(video_id)
@@ -105,6 +130,7 @@ class PersonaGenerator:
                 title=f"Generated Persona for Video: {title}",
                 name=name,
                 gender=self._format_gender(gender),
+                issues=analysis.get("issues", []),  # Use .get for safety
                 wishes=analysis.get("wishes", []),  # Use .get for safety
                 pains=analysis.get("pains", []),  # Use .get for safety
                 expressions=analysis.get("expressions", []),  # Use .get for safety
@@ -119,6 +145,7 @@ class PersonaGenerator:
                 title="Error",
                 name="",
                 gender="",
+                issues=[],
                 wishes=[],
                 pains=[],
                 expressions=[],
