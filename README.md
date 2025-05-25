@@ -1,7 +1,7 @@
 # YouTube Comment Persona Generator
 
-[![Python CI/CD](https://github.com/klebervieira/persona_from_comments/actions/workflows/python-ci.yml/badge.svg)](https://github.com/klebervieira/persona_from_comments/actions/workflows/python-ci.yml)
-[![codecov](https://codecov.io/gh/klebervieira/persona_from_comments/branch/main/graph/badge.svg)](https://codecov.io/gh/klebervieira/persona_from_comments)
+[![Python CI/CD](https://github.com/klebermagno/persona_from_comments/actions/workflows/python-ci.yml/badge.svg)](https://github.com/klebermagno/persona_from_comments/actions/workflows/python-ci.yml)
+[![codecov](https://codecov.io/gh/klebermagno/persona_from_comments/branch/main/graph/badge.svg)](https://codecov.io/gh/klebermagno/persona_from_comments)
 
 This project uses two external services: YouTube API and Namsor API.
 You need to set up the following environment variables:
