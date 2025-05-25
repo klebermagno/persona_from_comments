@@ -1,11 +1,11 @@
 import logging
-from db_manager import DBManager
-from gender_analyzer import GenderAnalyzer
-from sentiment_analyzer import SentimentAnalyser
+from .db_manager import DBManager
+from .gender_analyzer import GenderAnalyzer
+from .sentiment_analyzer import SentimentAnalyser
 
 # Comment class might not be directly needed here if we use dicts from db_manager
 from datetime import datetime
-from keyword_extractor import KeywordExtractor
+from .keyword_extractor import KeywordExtractor
 
 logger = logging.getLogger(__name__)
 

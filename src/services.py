@@ -2,9 +2,9 @@ import logging
 from dataclasses import dataclass
 from typing import Optional, Dict, List, Tuple
 
-from db_manager import DBManager
-from llm_analysis import LLMAnalysis
-from main import main  # Assuming main function is for processing video if not exists
+from .db_manager import DBManager
+from .llm_analysis import LLMAnalysis
+from .main import main as run_full_pipeline # Assuming main function is for processing video if not exists
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class PersonaGenerator:
     def __init__(self):
         self.db = DBManager()
 
-    def _ensure_video_analyzed(self, video_id: str) -> Optional[Dict[str, List[str]]]:
+    def _ensure_video_analyzed(self, video_id: str, language: str) -> Optional[Dict[str, List[str]]]:
         """Ensure video has LLM analysis, create if missing"""
         try:
             # self.db.connect() # REMOVED
@@ -42,7 +42,7 @@ class PersonaGenerator:
                     f"No existing analysis found for video {video_id}, creating new analysis"
                 )
                 llm = LLMAnalysis()
-                analysis = llm.execute(video_id)
+                analysis = llm.execute(video_id, language)
                 if not analysis:
                     logger.warning(f"Failed to create analysis for video {video_id}")
 
@@ -61,7 +61,7 @@ class PersonaGenerator:
         """Convert gender code to display format"""
         return "Female" if gender_code == "F" else "Male"
 
-    def generate_persona(self, video_id: str) -> PersonaData:
+    def generate_persona(self, video_id: str, language: str = "English") -> PersonaData:
         """Generate a persona for a video"""
         if not video_id:
             logger.warning("No video ID provided")
@@ -86,7 +86,7 @@ class PersonaGenerator:
             if not self.db.video_exists(video_id):
                 logger.info(f"Video {video_id} not found in database, processing...")
                 try:
-                    main(video_id)
+                    run_full_pipeline(video_id)
                 except ValueError as ve:
                     # Handle specific error for invalid/inaccessible videos
                     logger.error(f"Invalid video ID {video_id}: {str(ve)}")
@@ -124,7 +124,7 @@ class PersonaGenerator:
 
             # Get or create analysis
             analysis = self._ensure_video_analyzed(
-                video_id
+                video_id, language
             )  # This now correctly uses the refactored DBManager
             if not analysis:
                 logger.warning(

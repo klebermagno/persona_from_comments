@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass, field
 
 # from comment import Comment # Comment class might not be directly needed if using dicts
-from db_manager import DBManager
+from .db_manager import DBManager
 import json
 
 logger = logging.getLogger(__name__)

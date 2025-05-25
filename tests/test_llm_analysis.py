@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import json
-from llm_analysis import LLMAnalysis
-from db_manager import DBManager  # For mocking spec
+from src.llm_analysis import LLMAnalysis
+from src.db_manager import DBManager  # For mocking spec
 from openai import OpenAI  # For mocking spec
 
 # For controlling token counting in tests
@@ -12,6 +12,10 @@ MOCK_BASE_PROMPT_TEXT = """
             - Common wishes
             - Common pains
             - Common expressions or catchphrases
+            - Name (Summarize all names into one)
+            - Gender (Summarize all genders into one, based on the average comments it should be male or female)
+            - Age (Summarize all ages into one, based on the content of the comments text which is related to age)
+            - Language (Summarize all languages into one, based on the content of the comments which is related to language)
 
             Return your response as a single JSON object with four keys: "issues", "wishes", "pains", and "expressions". Each key should correspond to a list of strings (the extracted items).
 
@@ -28,17 +32,17 @@ class TestLLMAnalysis(unittest.TestCase):
         self.mock_openai_client.chat.completions.create = MagicMock()
 
         self.patcher_db = patch(
-            "llm_analysis.DBManager", return_value=self.mock_db_manager
+            "src.llm_analysis.DBManager", return_value=self.mock_db_manager
         )
         # Patch the OpenAI class where it's instantiated in LLMAnalysis
         self.patcher_openai = patch(
-            "llm_analysis.OpenAI", return_value=self.mock_openai_client
+            "src.llm_analysis.OpenAI", return_value=self.mock_openai_client
         )
 
         # Mock for tiktoken
         self.mock_encoding = MagicMock()
         self.patcher_tiktoken = patch(
-            "llm_analysis.tiktoken.encoding_for_model", return_value=self.mock_encoding
+            "src.llm_analysis.tiktoken.encoding_for_model", return_value=self.mock_encoding
         )
 
         self.MockDBManager = self.patcher_db.start()
@@ -64,16 +68,14 @@ class TestLLMAnalysis(unittest.TestCase):
 
     def test_execute_successful_analysis(self):
         comments_data = [
-            {"id": 1, "text": "Comment 1", "clean_text": "Comment 1"},
-            {"id": 2, "text": "Comment 2", "clean_text": "Comment 2"},
+            {"id": 1, "text": "Comment 1", "clean_text": "Comment 1", "author_clean_name": "TestAuthor1"},
+            {"id": 2, "text": "Comment 2", "clean_text": "Comment 2", "author_clean_name": "TestAuthor2"},
         ]
         self.mock_db_manager.get_comments.return_value = comments_data
 
         mock_llm_response_content_dict = {
-            "issues": ["i1"],
-            "wishes": ["w1"],
-            "pains": ["p1"],
-            "expressions": ["e1"],
+            "issues": ["i1"], "wishes": ["w1"], "pains": ["p1"], "expressions": ["e1"],
+            "name": "John Doe", "gender": "Male", "age": "25-34", "language": "English"
         }
         mock_llm_response_content_json = json.dumps(mock_llm_response_content_dict)
 
@@ -99,9 +101,8 @@ class TestLLMAnalysis(unittest.TestCase):
             "OpenAI API Error"
         )
 
-        with self.assertRaises(Exception) as context:
-            self.analyzer.execute("vid_api_error")
-        self.assertIn("OpenAI API Error", str(context.exception))
+        result = self.analyzer.execute("vid_api_error")
+        self.assertIsNone(result) # Expect None as execute returns None if no results
         self.mock_db_manager.save_analysis.assert_not_called()
 
     def test_batch_comments_logic(self):
@@ -184,51 +185,63 @@ class TestLLMAnalysis(unittest.TestCase):
             self.assertEqual(len(batches[0]), 3)
 
     def test_parse_response_valid_json(self):
-        json_string = '{"issues": ["issue1"], "wishes": ["wish1"], "pains": [], "expressions": ["expr1"]}'
+        json_string = '{"issues": ["issue1"], "wishes": ["wish1"], "pains": [], "expressions": ["expr1"], "name": "Test Name", "gender": "Female", "age": "30-40", "language": "Spanish"}'
         parsed = self.analyzer._parse_response(json_string)
         self.assertEqual(parsed["issues"], ["issue1"])
         self.assertEqual(parsed["wishes"], ["wish1"])
         self.assertEqual(parsed["pains"], [])
         self.assertEqual(parsed["expressions"], ["expr1"])
+        self.assertEqual(parsed["name"], "Test Name")
+        self.assertEqual(parsed["gender"], "Female")
+        self.assertEqual(parsed["age"], "30-40")
+        self.assertEqual(parsed["language"], "Spanish")
 
     def test_parse_response_invalid_json(self):
         invalid_json_string = '{"issues": ["issue1"], "wishes": incomplete_json'
         parsed = self.analyzer._parse_response(invalid_json_string)
         # Expect default structure due to JSONDecodeError
-        self.assertEqual(
-            parsed, {"issues": [], "wishes": [], "pains": [], "expressions": []}
-        )
+        expected_on_invalid_json = {"issues": [], "wishes": [], "pains": [], "expressions": [], "name": "", "gender": "", "age": "", "language": ""}
+        self.assertEqual(parsed, expected_on_invalid_json)
 
     def test_parse_response_partial_keys(self):
-        json_string = '{"issues": ["issue1"], "extras": ["unexpected"]}'  # Missing other main keys
+        json_string = '{"issues": ["issue1"], "name": "Only Name", "extras": ["unexpected"]}'  # Missing other main keys
         parsed = self.analyzer._parse_response(json_string)
         self.assertEqual(parsed["issues"], ["issue1"])
-        self.assertEqual(parsed["wishes"], [])  # Should be default empty list
-        self.assertEqual(parsed["pains"], [])  # Should be default empty list
-        self.assertEqual(parsed["expressions"], [])  # Should be default empty list
+        self.assertEqual(parsed["name"], "Only Name")
+        self.assertEqual(parsed["wishes"], [])  # default
+        self.assertEqual(parsed["pains"], []) # default
+        self.assertEqual(parsed["expressions"], []) # default
+        self.assertEqual(parsed["gender"], "") # default
+        self.assertEqual(parsed["age"], "") # default
+        self.assertEqual(parsed["language"], "") # default
 
     def test_merge_results(self):
         results_list = [
             {
-                "issues": ["i1"],
-                "wishes": ["w1"],
-                "pains": ["p1"],
-                "expressions": ["e1"],
+                "issues": ["i1"], "wishes": ["w1"], "pains": ["p1"], "expressions": ["e1"],
+                "name": "John", "gender": "Male", "age": "20-30", "language": "English"
             },
             {
-                "issues": ["i2", "i1"],
-                "wishes": ["w2"],
-                "pains": [],
-                "expressions": ["e2"],
+                "issues": ["i2", "i1"], "wishes": ["w2"], "pains": [], "expressions": ["e2"],
+                "name": "John", "gender": "Male", "age": "25-35", "language": "English"
             },
+            {
+                "issues": ["i3"], "wishes": ["w3"], "pains": ["p3"], "expressions": ["e3"],
+                "name": "Jane", "gender": "Female", "age": "20-30", "language": "Spanish"
+            }
         ]
         merged = self.analyzer.merge_results(results_list)
 
-        # dict.fromkeys preserves order from Python 3.7+
-        self.assertEqual(merged["issues"], ["i1", "i2"])
-        self.assertEqual(merged["wishes"], ["w1", "w2"])
-        self.assertEqual(merged["pains"], ["p1"])
-        self.assertEqual(merged["expressions"], ["e1", "e2"])
+        # dict.fromkeys preserves order from Python 3.7+ for list fields
+        self.assertEqual(merged["issues"], ["i1", "i2", "i3"])
+        self.assertEqual(merged["wishes"], ["w1", "w2", "w3"])
+        self.assertEqual(merged["pains"], ["p1", "p3"])
+        self.assertEqual(merged["expressions"], ["e1", "e2", "e3"])
+        # For scalar fields, the most common non-empty value is taken
+        self.assertEqual(merged["name"], "John")
+        self.assertEqual(merged["gender"], "Male")
+        self.assertEqual(merged["age"], "20-30") # John (20-30), John (25-35), Jane (20-30) -> "20-30" is most common
+        self.assertEqual(merged["language"], "English")
 
 
 if __name__ == "__main__":

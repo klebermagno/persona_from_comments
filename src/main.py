@@ -1,12 +1,13 @@
 import sys
 import logging
 
-from gathering import Gathering
-from mining import Mining
-from llm_analysis import LLMAnalysis
-from generating import (
+from .gathering import Gathering
+from .mining import Mining
+from .llm_analysis import LLMAnalysis
+from .generating import (
     Generating,
 )  # Added import for consistency, though not used in original main
+from .analysis import Analysis # Added as per subtask description
 
 # Configure logging - This will configure the root logger.
 # If other modules (like app.py) also configure it, the first one wins,

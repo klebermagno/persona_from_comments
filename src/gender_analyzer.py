@@ -1,6 +1,6 @@
 import json
 import requests
-import settings
+from . import settings
 
 
 class GenderAnalyzer:

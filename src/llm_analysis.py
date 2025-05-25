@@ -1,7 +1,7 @@
-from db_manager import DBManager
-from comment import Comment
+from .db_manager import DBManager
+from .comment import Comment
 from openai import OpenAI
-from settings import OPENAI_API_KEY  # Import OPENAI_API_KEY
+from .settings import OPENAI_API_KEY  # Import OPENAI_API_KEY
 from typing import List, Dict, Optional
 import json
 from itertools import islice
@@ -87,7 +87,7 @@ class LLMAnalysis:
 
         return batches
 
-    def analyze_batch(self, comments_batch: List[Dict]) -> dict:
+    def analyze_batch(self, comments_batch: List[Dict], language: str = "English") -> dict:
         """Analyze a batch of comments using OpenAI API."""
         try:
             # Format comments with author names
@@ -99,12 +99,13 @@ class LLMAnalysis:
 
             # Updated prompt to request JSON
             prompt = """
+            
             Analyze the following YouTube comments. Extract and summarize:
             - Common issues
             - Common wishes
             - Common pains
             - Common expressions or catchphrases
-            - Name (Summarize all names into one real name.)
+            - Name (Summarize all names into one real name. Averaged Real Name, UNknown aren't a real name. The gender need match with the name).
             - Gender (Summarize all genders into one, based on the average comments it should be male or female)
             - Age (Summarize all ages into one, based on the content of the comments text which is related to age, give a range like 18-25 or 30-40)
             - Language (Summarize all languages into one, based on the content of the comments which is related to language)
@@ -115,18 +116,21 @@ class LLMAnalysis:
             - "wishes": list of strings - desires and aspirations
             - "pains": list of strings - frustrations and difficulties
             - "expressions": list of strings - common phrases or sayings
-            - "name": string - Summarize all names into one real name.
-            - "gender": string - inferred gender ("Male", "Female")
+            - "name": string - Summarize all names into one real name(Averaged Real Name, UNknown aren't a real name).
+            - "gender": string - inferred gender ("Male", "Female"). The gender need match with the name
             - "age": string - Summarize all ages into one, based on the content of the comments text which is related to age, give a range like 18-25 or 30-40
-            - "language": string - primary language used
+            - "language": string - primary language used in the comments
+            
+            The values should be in the language specified: {language}.
 
             Analyze these comments and provide insights in JSON format:
             {comments}
             """.format(
-                comments=comments_text
+                comments=comments_text,
+                language=language
             )
             
-            print(f"Prompt for batch analysis:\n{prompt}\n")  # Debugging line
+            #print(f"Prompt for batch analysis:\n{prompt}\n")  # Debugging line
 
             max_retries = 3
             retry_delay = 20  # seconds
@@ -255,7 +259,7 @@ class LLMAnalysis:
 
         return merged
 
-    def execute(self, video_id) -> Optional[Dict[str, List[str]]]:
+    def execute(self, video_id, language= "English") -> Optional[Dict[str, List[str]]]:
         """Perform LLM analysis on comments for a given video ID."""
         try:
             comments = self.db.get_comments(video_id)
@@ -281,9 +285,9 @@ class LLMAnalysis:
             for i, batch in enumerate(batches, 1):
                 try:
                     logger.info(
-                        f"Processing batch {i}/{len(batches)} ({len(batch)} comments)..."
+                        f"Processing batch {i}/{len(batches)} ({len(batch)} comments) in {language}..."
                     )
-                    batch_result = self.analyze_batch(batch)
+                    batch_result = self.analyze_batch(batch, language)
                     results.append(batch_result)
                     # Small delay between batches to avoid rate limits
                     if i < len(batches):

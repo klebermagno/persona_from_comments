@@ -1,5 +1,5 @@
 import unittest
-from comment import Comment
+from src.comment import Comment
 from datetime import datetime, timezone
 
 

@@ -1,8 +1,9 @@
 import unittest
 import sqlite3
-from db_manager import DBManager
+from src.db_manager import DBManager
 from datetime import datetime, timezone  # Use timezone-aware datetimes for consistency
 import json
+import time # Ensure time is imported
 
 
 # Using a simple mock object for comment data to avoid direct dependency on Comment class structure in tests
@@ -38,7 +39,11 @@ class TestDBManager(unittest.TestCase):
     def setUp(self):
         """Set up a new in-memory database for each test."""
         self.db = DBManager(db_name=":memory:")
-        self.db.create_db()
+        # self.db.create_db() # create_db might be redundant now, tables are ensured in __init__ for :memory:
+
+    def tearDown(self):
+        if self.db:
+            self.db.close() # Ensure the in-memory connection is closed after tests
 
     def test_save_and_get_video_title(self):
         self.db.save_video_title("video1", "Test Video Title 1")
@@ -116,19 +121,20 @@ class TestDBManager(unittest.TestCase):
         )  # As per current DBManager.get_analysis behavior
 
     def test_get_all_videos(self):
+        # First video saved
         self.db.save_video_title("vid_all1", "Title B")
-        # Adding a small delay to ensure different creation times if DB resolution is low
-        # However, SQLite CURRENT_TIMESTAMP usually has enough resolution.
-        # For more robust test, would mock datetime.now() if it was used by save_video_title for 'created'
+        time.sleep(0.2)  # Small delay between saves
+        # Second video saved later, should appear first due to ORDER BY created DESC
         self.db.save_video_title("vid_all2", "Title A")
 
         videos = self.db.get_all_videos()
         self.assertEqual(len(videos), 2)
-        # Videos are ordered by created DESC. So vid_all2 (Title A) should be first.
-        self.assertEqual(videos[0][0], "vid_all2")  # video_id
-        self.assertEqual(videos[0][1], "Title A")  # title
-        self.assertEqual(videos[1][0], "vid_all1")
-        self.assertEqual(videos[1][1], "Title B")
+        
+        # Most recent video (vid_all2) should be first due to ORDER BY created DESC
+        self.assertEqual(videos[0][0], "vid_all2")  # First video_id
+        self.assertEqual(videos[0][1], "Title A")   # First title
+        self.assertEqual(videos[1][0], "vid_all1")  # Second video_id
+        self.assertEqual(videos[1][1], "Title B")   # Second title
 
     def _add_base_comment_for_updates(
         self, video_id="vid_update", comment_text="Initial comment text"

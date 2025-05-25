@@ -1,8 +1,8 @@
 import logging
 from datetime import datetime
-from comment import Comment
-from db_manager import DBManager
-from text_cleaner import TextCleaner
+from .comment import Comment
+from .db_manager import DBManager
+from .text_cleaner import TextCleaner
 
 logger = logging.getLogger(__name__)
 

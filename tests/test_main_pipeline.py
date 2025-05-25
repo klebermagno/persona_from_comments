@@ -4,15 +4,15 @@ from unittest.mock import (
     MagicMock,
     call,
 )  # Import call for checking ordered calls
-from main import main  # Import the main function to be tested
+from src.main import main  # Import the main function to be tested
 
 
 class TestMainPipeline(unittest.TestCase):
 
-    @patch("main.Generating")
-    @patch("main.LLMAnalysis")
-    @patch("main.Mining")
-    @patch("main.Gathering")
+    @patch("src.main.Generating")
+    @patch("src.main.LLMAnalysis")
+    @patch("src.main.Mining")
+    @patch("src.main.Gathering")
     def test_pipeline_calls_execute_on_all_components(
         self, MockGathering, MockMining, MockAnalysis, MockGenerating
     ):
@@ -31,10 +31,10 @@ class TestMainPipeline(unittest.TestCase):
         mock_analysis_instance.execute.assert_called_once_with("test_video_id")
         mock_generating_instance.execute.assert_called_once_with("test_video_id")
 
-    @patch("main.Generating")
-    @patch("main.LLMAnalysis")
-    @patch("main.Mining")
-    @patch("main.Gathering")
+    @patch("src.main.Generating")
+    @patch("src.main.LLMAnalysis")
+    @patch("src.main.Mining")
+    @patch("src.main.Gathering")
     def test_pipeline_order_of_execution(
         self, MockGathering, MockMining, MockAnalysis, MockGenerating
     ):
@@ -61,18 +61,15 @@ class TestMainPipeline(unittest.TestCase):
         # Assert that the calls were made in the expected order
         self.assertEqual(manager.mock_calls, expected_calls)
 
-    @patch("main.Generating")  # Patch in reverse order of decorator application
-    @patch("main.Analysis")
-    @patch("main.Mining")
-    @patch("main.Gathering")
-    @patch("main.logging.getLogger")  # Patch the logger
+    @patch("src.main.Generating")  # Patch in reverse order of decorator application
+    @patch("src.main.LLMAnalysis")
+    @patch("src.main.Mining")
+    @patch("src.main.Gathering")
+    @patch("src.main.logger")  # Patch the logger instance directly
     def test_pipeline_logging(
-        self, mock_get_logger, MockGathering, MockMining, MockAnalysis, MockGenerating
+        self, mock_logger_instance, MockGathering, MockMining, MockLLMAnalysis, MockGenerating
     ):
-        # mock_get_logger is the mock for logging.getLogger itself
-        # We need to mock the logger instance that getLogger returns
-        mock_logger_instance = MagicMock()
-        mock_get_logger.return_value = mock_logger_instance
+        # mock_logger_instance directly represents the mocked logger from src.main
 
         # Call the main function
         main("test_video_id_logging")
@@ -103,7 +100,7 @@ class TestMainPipeline(unittest.TestCase):
             "test_video_id_logging"
         )
         MockMining.return_value.execute.assert_called_once_with("test_video_id_logging")
-        MockAnalysis.return_value.execute.assert_called_once_with(
+        MockLLMAnalysis.return_value.execute.assert_called_once_with(
             "test_video_id_logging"
         )
         MockGenerating.return_value.execute.assert_called_once_with(

@@ -1,4 +1,4 @@
-from text_cleaner import TextCleaner
+from .text_cleaner import TextCleaner
 from textblob import TextBlob
 from langdetect import detect
 

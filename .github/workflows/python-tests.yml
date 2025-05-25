@@ -1,0 +1,42 @@
+name: Python Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.11, 3.12]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        python -m textblob.download_corpora
+        
+    - name: Configure Environment Variables
+      env:
+        YOUTUBE_DEVELOPER_KEY: ${{ secrets.YOUTUBE_DEVELOPER_KEY }}
+        NAMSOR_KEY: ${{ secrets.NAMSOR_KEY }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      run: |
+        echo "YOUTUBE_DEVELOPER_KEY=$YOUTUBE_DEVELOPER_KEY" >> $GITHUB_ENV
+        echo "NAMSOR_KEY=$NAMSOR_KEY" >> $GITHUB_ENV
+        echo "OPENAI_API_KEY=$OPENAI_API_KEY" >> $GITHUB_ENV
+        
+    - name: Run Tests
+      run: |
+        python -m pytest -v

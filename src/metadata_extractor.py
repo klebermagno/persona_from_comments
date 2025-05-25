@@ -1,5 +1,6 @@
 from datetime import datetime
-from comment import Comment
+from .comment import Comment
+from .text_cleaner import TextCleaner # Added as per subtask description
 
 class MetadataExtractor:
     def extract(self, item) -> Comment:
