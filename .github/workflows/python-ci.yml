@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main, master ]
 
+env:
+  TESTING: "true"
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -49,12 +52,13 @@ jobs:
         YOUTUBE_DEVELOPER_KEY: ${{ secrets.YOUTUBE_DEVELOPER_KEY }}
         NAMSOR_KEY: ${{ secrets.NAMSOR_KEY }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        TESTING: "true"
       run: |
+        echo "TESTING=true" >> $GITHUB_ENV
         echo "YOUTUBE_DEVELOPER_KEY=$YOUTUBE_DEVELOPER_KEY" >> $GITHUB_ENV
         echo "NAMSOR_KEY=$NAMSOR_KEY" >> $GITHUB_ENV
         echo "OPENAI_API_KEY=$OPENAI_API_KEY" >> $GITHUB_ENV
         
-    # Tests temporarily disabled
     - name: Run Tests and Coverage
       run: |
         pytest --cov=. --cov-report=xml
