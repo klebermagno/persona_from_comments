@@ -15,8 +15,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from .db_manager import DBManager  # Moved up
-from .services import PersonaGenerator, PersonaData  # Moved up
+from src.db_manager import DBManager  # Moved up
+from src.services import PersonaGenerator, PersonaData  # Moved up
 
 # from main import main # main is used in services.py, not directly here anymore
 # from llm_analysis import LLMAnalysis # LLMAnalysis is used in services.py
@@ -51,9 +51,9 @@ class PersonaUI:
             persona.status,
         )
 
-    def process_video(self, video_id: str) -> Tuple:
+    def process_video(self, video_id: str, language: str) -> Tuple:
         """Process video and format for display"""
-        persona = self.generator.generate_persona(video_id)
+        persona = self.generator.generate_persona(video_id, language)
         return self._format_for_display(persona)
 
     def get_video_list(self) -> List[Tuple[str, str]]:
@@ -89,6 +89,12 @@ class PersonaUI:
                         placeholder="Enter YouTube Video ID",
                         info="Example: dQw4w9WgXcQ",
                     )
+                    language_input = gr.Dropdown(
+                        label="Language",
+                        choices=["English", "Portuguese", "Spanish", "French", "German"],
+                        value="English",
+                        info="Select the language of the comments",
+                    )
 
                     with gr.Row():
                         submit_btn = gr.Button(
@@ -110,35 +116,40 @@ class PersonaUI:
                     status_output = gr.Textbox(label="Status", interactive=False)
 
                 with gr.Column(scale=2):
-                    persona_title = gr.Markdown("## Persona Details")
+                    
 
                     # Basic Information Grid using flexible layout
                     with gr.Group():
+                        persona_title = gr.Markdown("#### Persona Details")
                         gr.Markdown("### Basic Information")
                         with gr.Row():
                             # Left column for labels
-                            with gr.Column(min_width=80, scale=1):
-                                gr.Markdown("**Name:**")
-                                gr.Markdown("**Gender:**")
-                                gr.Markdown("**Age:**")
-                                gr.Markdown("**Language:**")
+                            # with gr.Column(min_width=200, scale=1):
+                            #     gr.Markdown("**Name:**")
+                            #     gr.Markdown("**Gender:**")
+                            #     gr.Markdown("**Age:**")
+                            #     gr.Markdown("**Language:**")
                             # Right column for values with consistent width
-                            with gr.Column(min_width=200, scale=1):
+                            with gr.Column(min_width=100, scale=2):
+                                gr.Markdown("**Name:**")
                                 persona_name = gr.Textbox(
                                     interactive=False, 
                                     show_label=False,
                                     lines=1
                                 )
+                                gr.Markdown("**Gender:**")
                                 persona_gender = gr.Textbox(
                                     interactive=False, 
                                     show_label=False,
                                     lines=1
                                 )
+                                gr.Markdown("**Age:**")
                                 persona_age = gr.Textbox(
                                     interactive=False, 
                                     show_label=False,
                                     lines=1
                                 )
+                                gr.Markdown("**Language:**")
                                 persona_language = gr.Textbox(
                                     interactive=False, 
                                     show_label=False,
@@ -148,7 +159,7 @@ class PersonaUI:
 
                         # Display sections
                         with gr.Group(visible=True):
-                            gr.Markdown("### Issues")
+                            #gr.Markdown("### Issues")
                             issues_list = gr.Dataframe(
                                 headers=["Issues"],
                                 datatype=["str"],
@@ -159,7 +170,7 @@ class PersonaUI:
                                 col_count=(1, "fixed"),
                             )
 
-                            gr.Markdown("### Wishes")
+                            #gr.Markdown("### Wishes")
                             wishes_list = gr.Dataframe(
                                 headers=["Wishes"],
                                 datatype=["str"],
@@ -170,7 +181,7 @@ class PersonaUI:
                                 col_count=(1, "fixed"),
                             )
 
-                            gr.Markdown("### Pains")
+                            #gr.Markdown("### Pains")
                             pains_list = gr.Dataframe(
                                 headers=["Pains"],
                                 datatype=["str"],
@@ -182,7 +193,7 @@ class PersonaUI:
                             )
 
                             gr.Markdown("---")  # Horizontal divider
-                            gr.Markdown("### Common Expressions")
+                            #gr.Markdown("### Common Expressions")
                             vocab_list = gr.Dataframe(
                                 headers=["Expressions"],
                                 datatype=["str"],
@@ -201,7 +212,7 @@ class PersonaUI:
                 queue=False,
             ).then(
                 fn=self.process_video,
-                inputs=video_id_input,
+                inputs=[video_id_input, language_input],
                 outputs=[
                     persona_title,
                     persona_name,
@@ -293,4 +304,4 @@ def initialize_environment():
 if __name__ == "__main__":
     initialize_environment()
     ui = PersonaUI()
-    ui.create_interface().launch(share=False)
+    ui.create_interface().launch(share=True)

@@ -31,7 +31,7 @@ class PersonaGenerator:
     def __init__(self):
         self.db = DBManager()
 
-    def _ensure_video_analyzed(self, video_id: str) -> Optional[Dict[str, List[str]]]:
+    def _ensure_video_analyzed(self, video_id: str, language: str) -> Optional[Dict[str, List[str]]]:
         """Ensure video has LLM analysis, create if missing"""
         try:
             # self.db.connect() # REMOVED
@@ -42,7 +42,7 @@ class PersonaGenerator:
                     f"No existing analysis found for video {video_id}, creating new analysis"
                 )
                 llm = LLMAnalysis()
-                analysis = llm.execute(video_id)
+                analysis = llm.execute(video_id, language)
                 if not analysis:
                     logger.warning(f"Failed to create analysis for video {video_id}")
 
@@ -61,7 +61,7 @@ class PersonaGenerator:
         """Convert gender code to display format"""
         return "Female" if gender_code == "F" else "Male"
 
-    def generate_persona(self, video_id: str) -> PersonaData:
+    def generate_persona(self, video_id: str, language: str = "English") -> PersonaData:
         """Generate a persona for a video"""
         if not video_id:
             logger.warning("No video ID provided")
@@ -124,7 +124,7 @@ class PersonaGenerator:
 
             # Get or create analysis
             analysis = self._ensure_video_analyzed(
-                video_id
+                video_id, language
             )  # This now correctly uses the refactored DBManager
             if not analysis:
                 logger.warning(

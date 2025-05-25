@@ -203,7 +203,7 @@ class DBManager:
         self._execute_query(sql, params, commit=True)
 
     def get_comments(self, video_id, no_sentiment=False, no_gender=False):
-        sql_base = "SELECT * FROM comment WHERE video_id = ?"
+        sql_base = "SELECT * FROM comment WHERE video_id = ? order by likes DESC"
         params = (video_id,)
 
         if no_sentiment:

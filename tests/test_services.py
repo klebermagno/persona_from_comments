@@ -93,7 +93,7 @@ class TestPersonaGenerator(unittest.TestCase):
         self.assertEqual(persona.pains, ["new_pain"])
         self.assertEqual(persona.expressions, ["new_expr"])
 
-        self.mock_llm_analysis.execute.assert_called_once_with("vid456")
+        self.mock_llm_analysis.execute.assert_called_once_with("vid456", "English")
         # get_analysis is called once in _ensure_video_analyzed
         self.mock_db_manager.get_analysis.assert_called_once_with("vid456")
 
