@@ -42,10 +42,10 @@ jobs:
         
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        python -m spacy download en_core_web_sm
-        python -m textblob.download_corpora
+        python3.11 -m pip install --upgrade pip
+        pip3.11 install -r requirements.txt
+        python3.11 -m spacy download en_core_web_sm
+        python3.11 -m textblob.download_corpora
         
     - name: Configure Environment Variables
       env:

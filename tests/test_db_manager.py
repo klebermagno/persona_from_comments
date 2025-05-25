@@ -121,10 +121,11 @@ class TestDBManager(unittest.TestCase):
         )  # As per current DBManager.get_analysis behavior
 
     def test_get_all_videos(self):
-        # First video saved
         self.db.save_video_title("vid_all1", "Title B")
-        time.sleep(0.2)  # Small delay between saves
-        # Second video saved later, should appear first due to ORDER BY created DESC
+        time.sleep(0.2) # Increased delay to 200ms
+        # Adding a small delay to ensure different creation times if DB resolution is low
+        # However, SQLite CURRENT_TIMESTAMP usually has enough resolution.
+        # For more robust test, would mock datetime.now() if it was used by save_video_title for 'created'
         self.db.save_video_title("vid_all2", "Title A")
 
         videos = self.db.get_all_videos()
