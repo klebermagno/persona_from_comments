@@ -15,8 +15,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from db_manager import DBManager  # Moved up
-from services import PersonaGenerator, PersonaData  # Moved up
+from .db_manager import DBManager  # Moved up
+from .services import PersonaGenerator, PersonaData  # Moved up
 
 # from main import main # main is used in services.py, not directly here anymore
 # from llm_analysis import LLMAnalysis # LLMAnalysis is used in services.py

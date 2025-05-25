@@ -1,7 +1,7 @@
-from db_manager import DBManager
-from comment import Comment
+from .db_manager import DBManager
+from .comment import Comment
 from openai import OpenAI
-from settings import OPENAI_API_KEY  # Import OPENAI_API_KEY
+from .settings import OPENAI_API_KEY  # Import OPENAI_API_KEY
 from typing import List, Dict, Optional
 import json
 from itertools import islice

@@ -2,9 +2,9 @@ import logging
 from dataclasses import dataclass
 from typing import Optional, Dict, List, Tuple
 
-from db_manager import DBManager
-from llm_analysis import LLMAnalysis
-from main import main  # Assuming main function is for processing video if not exists
+from .db_manager import DBManager
+from .llm_analysis import LLMAnalysis
+from .main import main as run_full_pipeline # Assuming main function is for processing video if not exists
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ class PersonaGenerator:
             if not self.db.video_exists(video_id):
                 logger.info(f"Video {video_id} not found in database, processing...")
                 try:
-                    main(video_id)
+                    run_full_pipeline(video_id)
                 except ValueError as ve:
                     # Handle specific error for invalid/inaccessible videos
                     logger.error(f"Invalid video ID {video_id}: {str(ve)}")

@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from services import PersonaGenerator, PersonaData
-from db_manager import DBManager  # For type hinting and spec for MagicMock
-from llm_analysis import LLMAnalysis  # For spec for MagicMock
+from src.services import PersonaGenerator, PersonaData
+from src.db_manager import DBManager  # For type hinting and spec for MagicMock
+from src.llm_analysis import LLMAnalysis  # For spec for MagicMock
 
 
 class TestPersonaGenerator(unittest.TestCase):
@@ -13,9 +13,9 @@ class TestPersonaGenerator(unittest.TestCase):
         self.mock_llm_analysis = MagicMock(spec=LLMAnalysis)
 
         # Patch DBManager and LLMAnalysis at the 'services' module level
-        self.patcher_db = patch("services.DBManager", return_value=self.mock_db_manager)
+        self.patcher_db = patch("src.services.DBManager", return_value=self.mock_db_manager)
         self.patcher_llm = patch(
-            "services.LLMAnalysis", return_value=self.mock_llm_analysis
+            "src.services.LLMAnalysis", return_value=self.mock_llm_analysis
         )
 
         self.MockDBManager = self.patcher_db.start()
@@ -97,8 +97,8 @@ class TestPersonaGenerator(unittest.TestCase):
         # get_analysis is called once in _ensure_video_analyzed
         self.mock_db_manager.get_analysis.assert_called_once_with("vid456")
 
-    @patch("services.main")  # Patch main within services module
-    def test_generate_persona_video_does_not_exist(self, mock_main_function):
+    @patch("src.services.run_full_pipeline")  # Patch main within services module
+    def test_generate_persona_video_does_not_exist(self, mock_run_full_pipeline_function):
         self.mock_db_manager.video_exists.return_value = (
             False  # Video does not exist initially
         )
@@ -117,7 +117,7 @@ class TestPersonaGenerator(unittest.TestCase):
 
         persona = self.generator.generate_persona("vid789")
 
-        mock_main_function.assert_called_once_with("vid789")
+        mock_run_full_pipeline_function.assert_called_once_with("vid789")
         self.assertEqual(
             persona.title, "Generated Persona for Video: New Video Processed"
         )

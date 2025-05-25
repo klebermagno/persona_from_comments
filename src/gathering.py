@@ -3,9 +3,9 @@ import googleapiclient.discovery
 import googleapiclient.errors
 import logging
 
-from settings import YOUTUBE_DEVELOPER_KEY as DEVELOPER_KEY
-from db_manager import DBManager
-from metadata_extractor import MetadataExtractor
+from .settings import YOUTUBE_DEVELOPER_KEY as DEVELOPER_KEY
+from .db_manager import DBManager
+from .metadata_extractor import MetadataExtractor
 
 logger = logging.getLogger(__name__)
 

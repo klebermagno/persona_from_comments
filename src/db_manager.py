@@ -8,20 +8,33 @@ from contextlib import contextmanager
 class DBManager:
     def __init__(self, db_name="youtube.db"):
         self.db_name = db_name
+        self.conn = None
+        if self.db_name == ":memory:":
+            self.conn = sqlite3.connect(self.db_name)
+            cur = self.conn.cursor()
+            self._ensure_tables_exist(cur) # Ensure tables are created for in-memory DB
 
     @contextmanager
     def _managed_cursor(self, commit_on_exit=False):
         """Context manager for database cursor with automatic connection management."""
-        con = sqlite3.connect(self.db_name)
+        if self.conn:  # If there's a persistent connection (for :memory:)
+            con = self.conn
+        else:
+            con = sqlite3.connect(self.db_name)
+        
         cur = con.cursor()
+        
+        if not self.conn: # Only call _ensure_tables_exist if it's not a persistent conn
+                          # (assuming it was called for persistent conn in __init__)
+            self._ensure_tables_exist(cur) # This ensures tables for file DBs on each new temp connection
+        
         try:
-            # Create tables if they don't exist (on every connection)
-            self._ensure_tables_exist(cur)
             yield cur
             if commit_on_exit:
                 con.commit()
         finally:
-            con.close()
+            if not self.conn: # Only close if it's not the persistent connection
+                con.close()
             
     def _ensure_tables_exist(self, cursor):
         """Ensure all required tables exist."""
@@ -363,3 +376,8 @@ class DBManager:
         sql = "INSERT INTO comment_keywords (video_id, text, score) VALUES (?,?,?)"
         params = (video_id, text, score)
         self._execute_query(sql, params, commit=True)
+
+    def close(self):
+        if self.conn:
+            self.conn.close()
+            self.conn = None

@@ -1,8 +1,9 @@
 import unittest
 import sqlite3
-from db_manager import DBManager
+from src.db_manager import DBManager
 from datetime import datetime, timezone  # Use timezone-aware datetimes for consistency
 import json
+import time # Ensure time is imported
 
 
 # Using a simple mock object for comment data to avoid direct dependency on Comment class structure in tests
@@ -38,7 +39,11 @@ class TestDBManager(unittest.TestCase):
     def setUp(self):
         """Set up a new in-memory database for each test."""
         self.db = DBManager(db_name=":memory:")
-        self.db.create_db()
+        # self.db.create_db() # create_db might be redundant now, tables are ensured in __init__ for :memory:
+
+    def tearDown(self):
+        if self.db:
+            self.db.close() # Ensure the in-memory connection is closed after tests
 
     def test_save_and_get_video_title(self):
         self.db.save_video_title("video1", "Test Video Title 1")
@@ -117,6 +122,7 @@ class TestDBManager(unittest.TestCase):
 
     def test_get_all_videos(self):
         self.db.save_video_title("vid_all1", "Title B")
+        time.sleep(0.2) # Increased delay to 200ms
         # Adding a small delay to ensure different creation times if DB resolution is low
         # However, SQLite CURRENT_TIMESTAMP usually has enough resolution.
         # For more robust test, would mock datetime.now() if it was used by save_video_title for 'created'
